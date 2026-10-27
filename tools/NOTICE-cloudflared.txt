@@ -1,0 +1,9 @@
+Third-party component included with the Windows build
+
+Name: cloudflared
+Version: 2026.10.4
+Source: https://github.com/cloudflare/cloudflared
+Release: https://github.com/cloudflare/cloudflared/releases/tag/2026.10.4
+Windows x64 SHA-256: 411b16d40c8d872243efeb52c550053d00af0a8a97fbb32e730fb8aba429eaa8
+License: Apache License 2.0; see LICENSE-cloudflared.txt.
+

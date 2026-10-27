@@ -1,0 +1,97 @@
+{
+  "name": "yuta-et-les-11",
+  "version": "0.1.7",
+  "private": true,
+  "type": "module",
+  "description": "La table de jeu multijoueur de Yuta et les 11.",
+  "author": "Yuta et les 11",
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "node --watch server/index.js",
+    "dev:client": "vite --host 0.0.0.0",
+    "build": "tsc -b && vite build",
+    "start": "node server/index.js",
+    "download:cloudflared": "node tools/download-cloudflared.mjs",
+    "package:win": "npm run build && npm run download:cloudflared && electron-builder --win nsis",
+    "test": "node --test"
+  },
+  "build": {
+    "appId": "fr.yutaetles11.table",
+    "productName": "Yuta et les 11",
+    "asar": true,
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "files": [
+      "dist/**/*",
+      "server/**/*",
+      "desktop/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "tools/cloudflared.exe",
+        "to": "cloudflared.exe"
+      },
+      {
+        "from": "tools/LICENSE-cloudflared.txt",
+        "to": "LICENSE-cloudflared.txt"
+      },
+      {
+        "from": "tools/NOTICE-cloudflared.txt",
+        "to": "NOTICE-cloudflared.txt"
+      }
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Xinoce",
+      "repo": "Yuta-et-les-11"
+    },
+    "artifactName": "Yuta-et-les-11-Setup-${version}.${ext}",
+    "npmRebuild": true,
+    "win": {
+      "verifyUpdateCodeSignature": false,
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Yuta et les 11"
+    }
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^13.0.3",
+    "electron-updater": "^6.8.11",
+    "express": "^4.21.2",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "electron": "45.0.0",
+    "electron-builder": "26.18.0",
+    "typescript": "~5.7.2",
+    "vite": "^6.0.7"
+  }
+}
+
