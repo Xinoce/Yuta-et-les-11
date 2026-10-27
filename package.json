@@ -49,7 +49,8 @@
     "publish": {
       "provider": "github",
       "owner": "Xinoce",
-      "repo": "Yuta-et-les-11"
+      "repo": "Yuta-et-les-11",
+      "releaseType": "release"
     },
     "artifactName": "Yuta-et-les-11-Setup-${version}.${ext}",
     "npmRebuild": true,
