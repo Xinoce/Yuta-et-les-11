@@ -4,7 +4,7 @@ Application multijoueur en français pour jouer à **Yuta et les 11**. L’inter
 
 ## Installer et démarrer sous Windows
 
-Téléchargez puis lancez `release\Yuta-et-les-11-Setup-0.1.9.exe`. L’application s’ouvre dans sa propre fenêtre et n’exige pas que Node.js soit installé sur le PC de jeu. Un raccourci est ajouté au bureau et au menu Démarrer. Les sauvegardes sont conservées dans les données utilisateur Windows de l’application.
+Téléchargez puis lancez `release\Yuta-et-les-11-Setup-0.1.10.exe`. L’application s’ouvre dans sa propre fenêtre et n’exige pas que Node.js soit installé sur le PC de jeu. Un raccourci est ajouté au bureau et au menu Démarrer. Les sauvegardes sont conservées dans les données utilisateur Windows de l’application.
 
 À partir de la 0.1.7, l’application vérifie les mises à jour au démarrage, les télécharge en arrière-plan et propose de redémarrer pour les installer. Les utilisateurs de la 0.1.6 doivent installer la 0.1.7 manuellement une première fois.
 
@@ -56,11 +56,11 @@ npm install
 npm run package:win
 ```
 
-Le fichier généré se trouve dans `release\Yuta-et-les-11-Setup-0.1.9.exe`.
+Le fichier généré se trouve dans `release\Yuta-et-les-11-Setup-0.1.10.exe`.
 
 ## Publier une mise à jour
 
-Le dépôt public [Xinoce/Yuta-et-les-11](https://github.com/Xinoce/Yuta-et-les-11) publie les installateurs sur GitHub Releases. Pour une nouvelle version, mettez à jour la version de `package.json`, poussez le code sur `main`, puis créez et poussez un tag correspondant, par exemple `v0.1.10`. GitHub Actions compile Windows et publie l’installateur ainsi que les métadonnées utilisées par l’auto‑mise‑à‑jour.
+Le dépôt public [Xinoce/Yuta-et-les-11](https://github.com/Xinoce/Yuta-et-les-11) publie les installateurs sur GitHub Releases. Pour une nouvelle version, mettez à jour la version de `package.json`, poussez le code sur `main`, puis créez et poussez un tag correspondant, par exemple `v0.1.11`. GitHub Actions compile Windows et publie l’installateur ainsi que les métadonnées utilisées par l’auto‑mise‑à‑jour.
 
 ## Socle de jeu
 
