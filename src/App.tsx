@@ -3,7 +3,7 @@ import { io, Socket } from 'socket.io-client'
 import { supabase } from './supabase'
 import {
   Activity, ArrowLeft, ArrowUpRight, BookOpen, Check, ChevronDown, ChevronRight, CircleHelp, Copy,
-  ClipboardList, Coins, Compass, Dices, DoorOpen, Eye, EyeOff, Feather, Gamepad2, Globe2, Heart, Image as ImageIcon, KeyRound, LogOut,
+  ClipboardList, Coins, Compass, Dices, DoorOpen, Eye, EyeOff, Feather, Gamepad2, Globe2, Heart, Image as ImageIcon, LogOut,
   MessageCircle, MonitorPlay, Plus, RefreshCw, ScrollText, Send, Settings, Shield, Sparkles, Swords, Trash2, TreePine, Upload, Users, X,
 } from 'lucide-react'
 
@@ -227,21 +227,21 @@ function WelcomeFlow({ onAuthenticated, initialRole = null }: { onAuthenticated:
       let data: SessionData
       let accessToken = ''
       if (register) {
-        if (role !== 'player') throw new Error('Seuls les comptes joueurs peuvent être créés depuis cet écran.')
+        if (!role) throw new Error('Choisis d’abord ton rôle.')
         const email = String(values.email || '').trim().toLowerCase()
         const password = String(values.password || '')
         const { data: signedUp, error: signUpError } = await supabase.auth.signUp({
           email, password,
-          options: { data: { username: String(values.username || ''), displayName: String(values.displayName || '') } },
+          options: { data: { role, username: String(values.username || ''), displayName: String(values.displayName || '') } },
         })
         if (signUpError) throw new Error(signUpError.message)
         if (!signedUp.session) {
           setRegister(false)
-          throw new Error('Compte créé. Confirme ton adresse e-mail, puis connecte-toi avec cette adresse pour terminer la création du profil joueur.')
+          throw new Error(`Compte ${role === 'gm' ? 'MJ' : 'joueur'} créé. Confirme ton adresse e-mail, puis connecte-toi pour terminer la création du profil.`)
         }
         accessToken = signedUp.session.access_token
         data = await api<SessionData>('/api/auth/register', { method: 'POST', body: JSON.stringify({
-          accessToken, email, username: values.username, displayName: values.displayName,
+          accessToken, email, username: values.username, displayName: values.displayName, role,
         }) })
       } else if (String(values.identifier || '').includes('@')) {
         const email = String(values.identifier).trim().toLowerCase()
@@ -280,9 +280,8 @@ function WelcomeFlow({ onAuthenticated, initialRole = null }: { onAuthenticated:
       {!register && <label>Adresse e-mail ou ancien pseudo<input name="identifier" placeholder={role === 'gm' ? 'Yuta ou toi@exemple.fr' : 'toi@exemple.fr'} required autoComplete="username"/></label>}
        {role === 'player' && selectedLobby && !socialInvitationId && <label>Mot de passe de la partie<input name="joinPassword" type="password" minLength={8} maxLength={200} placeholder="Mot de passe transmis par le MJ" required autoComplete="off"/></label>}
       <label>Mot de passe<input name="password" type="password" minLength={register ? 10 : 1} placeholder={register ? '10 caractères minimum' : 'Mot de passe'} required autoComplete={register ? 'new-password' : 'current-password'}/></label>
-      {role === 'gm' && !register && <div className="admin-hint"><KeyRound size={14}/><span>Première connexion MJ : <strong>Yuta / admin123</strong>. Change ton mot de passe, crée une campagne, puis lie ton compte Supabase dans Réglages.</span></div>}
-      {error && <div className="form-error">{error}</div>}<button className="button-primary auth-submit" disabled={busy}>{busy ? 'Connexion…' : register ? selectedLobby ? 'Créer le compte et rejoindre' : 'Créer mon compte joueur' : selectedLobby ? 'Se connecter et rejoindre' : 'Se connecter'} <ArrowUpRight size={16}/></button></form>
-      {role === 'player' && <button className="text-link" onClick={() => { setRegister(!register); setError('') }}>{register ? 'J’ai déjà un compte' : 'Créer un compte joueur'}</button>}
+      {error && <div className="form-error">{error}</div>}<button className="button-primary auth-submit" disabled={busy}>{busy ? 'Patiente…' : register ? selectedLobby ? 'Créer le compte et rejoindre' : `Créer mon compte ${role === 'gm' ? 'MJ' : 'joueur'}` : selectedLobby ? 'Se connecter et rejoindre' : 'Se connecter'} <ArrowUpRight size={16}/></button></form>
+      <button className="text-link" onClick={() => { setRegister(!register); setError('') }}>{register ? `J’ai déjà un compte ${role === 'gm' ? 'MJ' : 'joueur'}` : `Créer un compte ${role === 'gm' ? 'MJ' : 'joueur'}`}</button>
       <div className="role-footer"><Shield size={14}/> {role === 'gm' ? 'Les réglages privés restent visibles uniquement par le MJ.' : 'Après connexion, tu pourras créer ou choisir ton personnage.'}</div></section>}
   </div><div className="welcome-bottom"><span>✦</span> DES HÉROS ORDINAIRES, DES AVENTURES EXTRAORDINAIRES <span>✦</span></div></div>
 }
