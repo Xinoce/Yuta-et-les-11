@@ -4,7 +4,7 @@ Application multijoueur en français pour jouer à **Yuta et les 11**. L’inter
 
 ## Installer et démarrer sous Windows
 
-Téléchargez puis lancez `release\Yuta-et-les-11-Setup-0.1.11.exe`. L’application s’ouvre dans sa propre fenêtre et n’exige pas que Node.js soit installé sur le PC de jeu. Un raccourci est ajouté au bureau et au menu Démarrer. Les sauvegardes sont conservées dans les données utilisateur Windows de l’application.
+Téléchargez puis lancez `release\Yuta-et-les-11-Setup-0.1.12.exe`. L’application s’ouvre dans sa propre fenêtre et n’exige pas que Node.js soit installé sur le PC de jeu. Un raccourci est ajouté au bureau et au menu Démarrer. Les sauvegardes sont conservées dans les données utilisateur Windows de l’application.
 
 À partir de la 0.1.7, l’application vérifie les mises à jour au démarrage, les télécharge en arrière-plan et propose de redémarrer pour les installer. Les utilisateurs de la 0.1.6 doivent installer la 0.1.7 manuellement une première fois.
 
@@ -34,7 +34,7 @@ Les campagnes visibles apparaissent dans la liste actualisée depuis le lien du 
 
 Dans l’onglet **Game**, le MJ ajoute des images de carte ou de personnages et choisit celle qui est visible par les joueurs. Les joueurs voient uniquement l’image partagée. Chaque fiche (héros, compagnon, PNJ, monstre ou autre) peut aussi avoir son propre portrait/visuel, modifiable depuis la fiche. Les images sont hébergées par le PC du MJ. Le MJ et les joueurs disposent du lancer rapide de D20 et d’un petit résumé des derniers résultats, synchronisés en direct.
 
-Supabase Auth gère les connexions. Les codes joueurs, profils publics, relations d’amitié et invitations sont stockés dans les tables protégées par RLS du projet Supabase ; aucune adresse e-mail n’est affichée aux amis. Pour activer ces fonctions, exécutez `supabase/migrations/20261102000000_social_friends_invites.sql` dans le SQL Editor du projet Supabase. Les mots de passe de campagne, campagnes et fichiers ne sont pas envoyés à Supabase. La configuration du projet et sa clé **publishable** sont dans `src/supabase.ts` et dans les valeurs par défaut de `server/index.js` ; aucun secret Supabase n’est utilisé côté client ou serveur. Pour remplacer le projet, configurer `VITE_SUPABASE_URL` et `VITE_SUPABASE_PUBLISHABLE_KEY` au moment de compiler, ainsi que `SUPABASE_URL` et `SUPABASE_PUBLISHABLE_KEY` pour le serveur. Les comptes locaux existants restent accessibles avec leur ancien pseudo jusqu’à ce qu’ils lient un compte Supabase dans Réglages. Le premier MJ conserve son profil `Yuta`, change le mot de passe temporaire, crée une première campagne, puis lie son compte depuis Réglages.
+Supabase Auth gère les connexions sur le projet `https://cbwdbjwpexgxbewdpnzh.supabase.co`. Les codes joueurs, profils publics, relations d’amitié et invitations sont stockés dans les tables protégées par RLS du projet Supabase ; aucune adresse e-mail n’est affichée aux amis. Pour activer ces fonctions, exécutez `supabase/migrations/20261102000000_social_friends_invites.sql` dans le SQL Editor du nouveau projet Supabase. Les mots de passe de campagne, campagnes et fichiers ne sont pas envoyés à Supabase. La configuration du projet et sa clé **publishable** sont dans `src/supabase.ts` et dans les valeurs par défaut de `server/index.js` ; aucun secret Supabase n’est utilisé côté client ou serveur. Pour remplacer le projet, configurer `VITE_SUPABASE_URL` et `VITE_SUPABASE_PUBLISHABLE_KEY` au moment de compiler, ainsi que `SUPABASE_URL` et `SUPABASE_PUBLISHABLE_KEY` pour le serveur. Après le changement de projet, les profils locaux peuvent être reconnectés en se connectant au nouveau compte Supabase avec la même adresse e-mail confirmée. Les comptes, IDs d’amis et invitations de l’ancien projet ne sont pas transférés automatiquement. Le premier MJ conserve son profil `Yuta`, change le mot de passe temporaire, crée une première campagne, puis lie son compte depuis Réglages.
 
 Pour les inscriptions avec confirmation par e-mail, configurez un serveur SMTP personnalisé dans les paramètres Auth de Supabase : le service e-mail intégré aux projets hébergés n’envoie qu’aux membres de l’organisation et est limité à 2 e-mails par heure ([documentation SMTP Supabase](https://supabase.com/docs/guides/auth/auth-smtp)). La confirmation peut être désactivée pour un essai fermé, mais les adresses ne seront alors pas vérifiées.
 
@@ -56,7 +56,7 @@ npm install
 npm run package:win
 ```
 
-Le fichier généré se trouve dans `release\Yuta-et-les-11-Setup-0.1.11.exe`.
+Le fichier généré se trouve dans `release\Yuta-et-les-11-Setup-0.1.12.exe`.
 
 ## Publier une mise à jour
 
