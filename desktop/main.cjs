@@ -5,12 +5,25 @@ const { autoUpdater } = require('electron-updater')
 let gameServer
 let gameDatabase
 let gameSockets
+let mainWindow
 let updateCheckStarted = false
+const smokeTest = process.argv.includes('--smoke-test')
+const hasSingleInstanceLock = smokeTest || app.requestSingleInstanceLock()
 
 app.setAppUserModelId('fr.yutaetles11.table')
 
+if (!hasSingleInstanceLock) {
+  app.quit()
+} else if (!smokeTest) {
+  app.on('second-instance', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  })
+}
+
 async function startGame() {
-  const smokeTest = process.argv.includes('--smoke-test')
   process.env.DATA_DIR = path.join(app.getPath('userData'), 'data')
   process.env.COOKIE_SECURE = 'false'
 
@@ -19,9 +32,29 @@ async function startGame() {
   gameDatabase = db
   gameSockets = io
 
+  const preferredPort = smokeTest ? 0 : Number(process.env.PORT || 3001)
   await new Promise((resolve, reject) => {
-    server.once('error', reject)
-    startServer({ port: smokeTest ? 0 : Number(process.env.PORT || 3001), host: '0.0.0.0', onListening: resolve })
+    const host = '0.0.0.0'
+    const onError = (error) => {
+      if (!smokeTest && preferredPort !== 0 && error.code === 'EADDRINUSE') {
+        server.removeListener('error', onError)
+        console.warn(`Le port ${preferredPort} est déjà utilisé. Yuta et les 11 choisit un port libre.`)
+        server.once('error', reject)
+        try {
+          startServer({ port: 0, host, onListening: resolve })
+        } catch (fallbackError) {
+          reject(fallbackError)
+        }
+        return
+      }
+      reject(error)
+    }
+    server.once('error', onError)
+    try {
+      startServer({ port: preferredPort, host, onListening: resolve })
+    } catch (error) {
+      reject(error)
+    }
   })
 
   const address = server.address()
@@ -34,7 +67,7 @@ async function startGame() {
     return
   }
 
-  const window = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1280,
     height: 860,
     minWidth: 360,
@@ -49,10 +82,10 @@ async function startGame() {
       sandbox: true,
     },
   })
-  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-  window.once('ready-to-show', () => window.show())
-  await window.loadURL(`http://127.0.0.1:${port}`)
-  configureAutoUpdates(window)
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  mainWindow.once('ready-to-show', () => mainWindow.show())
+  await mainWindow.loadURL(`http://127.0.0.1:${port}`)
+  configureAutoUpdates(mainWindow)
 }
 
 function configureAutoUpdates(window) {
@@ -83,7 +116,7 @@ function configureAutoUpdates(window) {
   }, 10000)
 }
 
-app.whenReady().then(startGame).catch((error) => {
+app.whenReady().then(() => hasSingleInstanceLock ? startGame() : undefined).catch((error) => {
   if (process.argv.includes('--smoke-test')) {
     console.error('YUTA_DESKTOP_SMOKE_FAILED', error)
     app.exit(1)
