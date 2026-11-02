@@ -4,14 +4,15 @@ Ce fichier sert de passation pour reprendre le développement de l’application
 
 ## État au moment de la passation
 
-- Version de l’application : **0.1.10**.
+- Version actuelle : **0.1.11**.
 - Application Windows Electron, interface React/TypeScript, serveur Express, Socket.IO et base SQLite.
-- L’installateur généré est `release/Yuta-et-les-11-Setup-0.1.10.exe`. Le dossier `release/` est ignoré par Git ; les installateurs sont publiés par GitHub Actions dans Releases.
+- L’installateur généré est `release/Yuta-et-les-11-Setup-0.1.11.exe`. Le dossier `release/` est ignoré par Git ; les installateurs sont publiés par GitHub Actions dans Releases.
 - Supabase Auth gère les comptes globaux. Chaque serveur MJ conserve les profils de campagne et les données de jeu localement ; `users.auth_user_id` relie un compte Supabase à son profil SQLite sur cet hôte.
 - La version 0.1.6 ajoute la liaison du compte Supabase, la connexion/inscription e-mail et les portraits de personnages hébergés dans `character-images/` sur le PC MJ.
 - La version 0.1.7 ajoute l’auto‑mise‑à‑jour via les GitHub Releases publiques du dépôt `Xinoce/Yuta-et-les-11`. Au démarrage, `desktop/main.cjs` vérifie les nouvelles versions, les télécharge puis demande confirmation avant de redémarrer.
 - La version 0.1.8 corrige le démarrage lorsque le port 3001 est déjà occupé et évite les lancements multiples de l’application.
 - La version 0.1.9 apporte les boutons Retour, Menu principal et Déconnexion ; la compilation de cette release a échoué, et les mêmes changements sont repris en 0.1.10 après correction de `src/App.tsx` sur `main`.
+- La version 0.1.11 ajoute les comptes joueurs sans campagne, les IDs sociaux, les demandes de contact et les invitations privées de partie. Appliquer la migration supabase/migrations/20261102000000_social_friends_invites.sql dans le SQL Editor du projet avant utilisation de Amis.
 - Cette copie de travail n’a pas de dossier Git (`.git` absent). Le dépôt distant du projet est [Xinoce/Yuta-et-les-11](https://github.com/Xinoce/Yuta-et-les-11) ; récupérer son historique avec `git clone` pour une nouvelle copie de développement.
 
 ## Installer le projet sur un autre PC
@@ -61,6 +62,7 @@ Le fichier est produit dans `release/`. Le nom inclut automatiquement la version
 - Fiches par campagne : héros, compagnons attribués à un joueur, PNJ, monstres et autres fiches MJ.
 - Fiches avec caractéristiques, PV, inventaire et golds.
 - Portraits pour chaque fiche, conservés sous `character-images/<campaignId>/<characterId>/` et servis après contrôle des droits de campagne.
+- Compte joueur créable sans campagne, ID public Y11-XXXXXXXXXX, demandes de contact et invitations privées entre amis via Supabase.
 - Connexion globale via Supabase Auth. La base MJ garde une ligne locale par joueur et la relie au `auth_user_id` Supabase. Le MJ Yuta préexistant doit se connecter avec son identifiant local, changer son mot de passe temporaire et lier son compte depuis Réglages. Un nouveau compte joueur se crée avec son adresse e-mail ; aucune clé secrète Supabase n’est requise.
 - Auto‑mise‑à‑jour Electron via `electron-updater` et le provider GitHub. Le dépôt et les Releases doivent rester publics pour que les clients téléchargent les mises à jour sans jeton embarqué. `verifyUpdateCodeSignature` est désactivé faute de certificat de signature Windows ; les paquets restent vérifiés par le SHA‑512 des métadonnées reçues en HTTPS. Si une signature Windows est ajoutée, réactiver la vérification du certificat dans `package.json`.
 - Lancers partagés en direct et requêtes de tests du MJ.
@@ -91,7 +93,6 @@ Le compte MJ `Yuta` / `admin123` n’est créé que lorsque la base ne contient 
 
 ## Consigne de reprise
 
-Pour publier la version suivante, augmenter la version racine dans `package.json` et `package-lock.json`, pousser les changements sur `main`, puis créer/pousser le tag `v<version>` (par ex. `v0.1.11`). GitHub Actions lance `npm run package:win -- --publish always`; il n’y a pas besoin d’un secret GitHub ajouté à la configuration, le workflow utilise son `GITHUB_TOKEN` limité au dépôt. La version 0.1.6 ne contient pas l’updater : les utilisateurs doivent passer manuellement à la 0.1.7.
+Pour publier la version suivante, augmenter la version racine dans `package.json` et `package-lock.json`, pousser les changements sur `main`, puis créer/pousser le tag `v<version>` (par ex. `v0.1.12`). GitHub Actions lance `npm run package:win -- --publish always`; il n’y a pas besoin d’un secret GitHub ajouté à la configuration, le workflow utilise son `GITHUB_TOKEN` limité au dépôt. La version 0.1.6 ne contient pas l’updater : les utilisateurs doivent passer manuellement à la 0.1.7.
 
-Pour reprendre avec Codex sur un autre PC, ouvrir le dossier du projet et lui demander de lire `README_CODEX.md` ainsi que `README.md` avant de modifier le code. La version actuelle est 0.1.10 ; préserver les dossiers de sauvegarde et les fichiers `tools/` lors d’un transfert.
-
+Pour reprendre avec Codex sur un autre PC, ouvrir le dossier du projet et lui demander de lire `README_CODEX.md` ainsi que `README.md` avant de modifier le code. La version actuelle est 0.1.11 ; préserver les dossiers de sauvegarde et les fichiers `tools/` lors d’un transfert.
