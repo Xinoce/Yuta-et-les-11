@@ -34,7 +34,9 @@ async function startGame() {
 
   const preferredPort = smokeTest ? 0 : Number(process.env.PORT || 3001)
   await new Promise((resolve, reject) => {
-    const host = '0.0.0.0'
+    // The Electron UI and Cloudflare connector only need loopback access.
+    // Binding to every interface can trigger a Windows Defender Firewall prompt.
+    const host = '127.0.0.1'
     const onError = (error) => {
       if (!smokeTest && preferredPort !== 0 && error.code === 'EADDRINUSE') {
         server.removeListener('error', onError)

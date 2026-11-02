@@ -21,23 +21,27 @@ function findCloudflared() {
 
 export function getTunnelStatus() { return snapshot() }
 
-async function waitForPublicPage(child, publicUrl) {
+async function waitForTunnelReady(child, port, publicUrl, isConnected) {
   const deadline = Date.now() + 45000
+  let originReady = false
   while (tunnelProcess === child && state.status === 'starting' && Date.now() < deadline) {
     try {
-      const response = await fetch(`${publicUrl}/api/bootstrap?probe=${Date.now()}`, { signal: AbortSignal.timeout(5000), cache: 'no-store' })
+      const response = await fetch(`http://127.0.0.1:${port}/api/bootstrap?probe=${Date.now()}`, { signal: AbortSignal.timeout(1500), cache: 'no-store' })
       if (response.ok) {
         const payload = await response.json()
-        if (typeof payload?.hasGame === 'boolean') {
-          state = { status: 'online', publicUrl, error: null }
-          return
-        }
-      }
-    } catch { /* The first request can arrive before Cloudflare finishes connecting. */ }
+        originReady = typeof payload?.hasGame === 'boolean'
+      } else originReady = false
+    } catch { originReady = false }
+    if (originReady && isConnected()) {
+      state = { status: 'online', publicUrl, error: null }
+      return
+    }
     await new Promise((resolve) => setTimeout(resolve, 900))
   }
   if (tunnelProcess === child && state.status === 'starting') {
-    state = { status: 'error', publicUrl: null, error: 'Cloudflare a créé le lien, mais ton application reste inaccessible depuis Internet. Vérifie le pare-feu Windows et la connexion Internet, puis réessaie.' }
+    state = isConnected()
+      ? { status: 'error', publicUrl: null, error: 'Le serveur local de Yuta ne répond pas. Ferme puis relance l’application.' }
+      : { status: 'error', publicUrl: null, error: 'Cloudflare n’a pas pu établir de connexion depuis ce réseau. Vérifie la connexion Internet ou réessaie sur un autre réseau.' }
     child.kill()
   }
 }
@@ -71,15 +75,19 @@ export function startPublicTunnel(port) {
   }
 
   let logBuffer = ''
+  let tunnelConnected = false
+  let readinessCheckStarted = false
   const consume = (chunk) => {
     logBuffer = (logBuffer + chunk.toString()).slice(-16000)
-    if (tunnelProcess !== child || state.status !== 'starting' || state.publicUrl) return
+    if (/Registered tunnel connection/i.test(logBuffer)) tunnelConnected = true
+    if (tunnelProcess !== child || state.status !== 'starting') return
     const match = logBuffer.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/i)
-    if (match) {
+    if (match && !readinessCheckStarted) {
       clearTimeout(startTimer)
       startTimer = null
       state = { status: 'starting', publicUrl: match[0], error: null }
-      void waitForPublicPage(child, match[0])
+      readinessCheckStarted = true
+      void waitForTunnelReady(child, port, match[0], () => tunnelConnected)
     }
   }
   child.stdout.on('data', consume)

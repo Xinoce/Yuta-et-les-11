@@ -4,11 +4,11 @@ Application multijoueur en français pour jouer à **Yuta et les 11**. L’inter
 
 ## Installer et démarrer sous Windows
 
-Téléchargez puis lancez `release\Yuta-et-les-11-Setup-0.1.14.exe`. L’application s’ouvre dans sa propre fenêtre et n’exige pas que Node.js soit installé sur le PC de jeu. Un raccourci est ajouté au bureau et au menu Démarrer. Les sauvegardes sont conservées dans les données utilisateur Windows de l’application.
+Téléchargez puis lancez `release\Yuta-et-les-11-Setup-0.1.15.exe`. L’application s’ouvre dans sa propre fenêtre et n’exige pas que Node.js soit installé sur le PC de jeu. Un raccourci est ajouté au bureau et au menu Démarrer. Les sauvegardes sont conservées dans les données utilisateur Windows de l’application.
 
 À partir de la 0.1.7, l’application vérifie les mises à jour au démarrage, les télécharge en arrière-plan et propose de redémarrer pour les installer. Les utilisateurs de la 0.1.6 doivent installer la 0.1.7 manuellement une première fois.
 
-Le MJ peut héberger en ligne depuis **Réglages → Héberger en ligne**. L’application ouvre un tunnel temporaire Cloudflare vers son PC ; les joueurs n’ont pas à connaître son IP, ouvrir de port ou installer Hamachi. Ils ouvrent le lien HTTPS transmis par le MJ, puis utilisent l’ID de partie et son mot de passe. L’ID est aléatoire et ne contient pas d’information personnelle. Le mot de passe de partie est stocké sous forme hachée.
+Le MJ peut héberger en ligne depuis **Réglages → Héberger en ligne**. L’application ouvre un tunnel temporaire Cloudflare vers son PC ; les joueurs n’ont pas à connaître son IP, ouvrir de port ou installer Hamachi. Le serveur local écoute uniquement sur le PC du MJ et l’application n’a pas besoin d’ajouter de règle entrante au pare-feu Windows. Ils ouvrent le lien HTTPS transmis par le MJ, puis utilisent l’ID de partie et son mot de passe. L’ID est aléatoire et ne contient pas d’information personnelle. Le mot de passe de partie est stocké sous forme hachée.
 
 Le MJ doit laisser l’application ouverte pendant la partie. Le lien est temporaire et change à chaque ouverture. Le tunnel est fourni par Cloudflare : il sert de relais public, donc ce n’est pas une connexion directe entre joueurs. Les Quick Tunnels ne demandent ni compte ni domaine, mais Cloudflare les destine aux usages temporaires et ne garantit pas leur disponibilité ; ils s’arrêtent avec le processus et limitent à 200 les requêtes simultanées en cours ([limites Quick Tunnel](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/)). Les WebSockets utilisés pour les lancers en direct sont pris en charge ([WebSockets Cloudflare](https://developers.cloudflare.com/network/websockets/)).
 
@@ -51,7 +51,7 @@ npm install
 npm run package:win
 ```
 
-Le fichier généré se trouve dans `release\Yuta-et-les-11-Setup-0.1.14.exe`.
+Le fichier généré se trouve dans `release\Yuta-et-les-11-Setup-0.1.15.exe`.
 
 ## Publier une mise à jour
 
@@ -76,4 +76,5 @@ Le dépôt public [Xinoce/Yuta-et-les-11](https://github.com/Xinoce/Yuta-et-les-
 npm test
 npm run build
 ```
+
 

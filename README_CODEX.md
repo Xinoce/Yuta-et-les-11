@@ -4,9 +4,9 @@ Ce fichier sert de passation pour reprendre le développement de l’application
 
 ## État au moment de la passation
 
-- Version actuelle : **0.1.14**.
+- Version actuelle : **0.1.15**.
 - Application Windows Electron, interface React/TypeScript, serveur Express, Socket.IO et base SQLite.
-- L’installateur généré est `release/Yuta-et-les-11-Setup-0.1.14.exe`. Le dossier `release/` est ignoré par Git ; les installateurs sont publiés par GitHub Actions dans Releases.
+- L’installateur généré est `release/Yuta-et-les-11-Setup-0.1.15.exe`. Le dossier `release/` est ignoré par Git ; les installateurs sont publiés par GitHub Actions dans Releases.
 - Supabase Auth gère les comptes globaux. Chaque serveur MJ conserve les profils de campagne et les données de jeu localement ; `users.auth_user_id` relie un compte Supabase à son profil SQLite sur cet hôte.
 - La version 0.1.6 ajoute la liaison du compte Supabase, la connexion/inscription e-mail et les portraits de personnages hébergés dans `character-images/` sur le PC MJ.
 - La version 0.1.7 ajoute l’auto‑mise‑à‑jour via les GitHub Releases publiques du dépôt `Xinoce/Yuta-et-les-11`. Au démarrage, `desktop/main.cjs` vérifie les nouvelles versions, les télécharge puis demande confirmation avant de redémarrer.
@@ -16,6 +16,7 @@ Ce fichier sert de passation pour reprendre le développement de l’application
 - La version 0.1.12 cible le nouveau projet Supabase `https://cbwdbjwpexgxbewdpnzh.supabase.co`. Après une migration de projet, l’API serveur peut relier un profil SQLite existant au nouveau compte Supabase quand l’adresse e-mail correspond et est confirmée. Les comptes Auth, IDs, amitiés et invitations de l’ancien projet ne sont pas copiés automatiquement ; la migration SQL sociale doit aussi être exécutée dans le nouveau projet.
 - La version 0.1.13 ajoute l’inscription Supabase des comptes MJ, retire le compte administrateur précréé et adapte l’échelle globale de l’interface aux écrans 2K et plus.
 - La version 0.1.14 crée les identifiants d’amis `pseudo#0000` dans Supabase, convertit les anciens IDs sociaux à l’application de la migration et affiche les erreurs PostgREST réelles au lieu d’un message générique.
+- La version 0.1.15 fait écouter le serveur local uniquement sur `127.0.0.1` pour éviter l’exposition réseau locale et les demandes entrantes du pare-feu Windows. Le contrôle de démarrage vérifie la disponibilité locale et l’enregistrement du tunnel Cloudflare, sans faire rebondir le test par l’URL publique depuis le PC du MJ.
 - Cette copie de travail n’a pas de dossier Git (`.git` absent). Le dépôt distant du projet est [Xinoce/Yuta-et-les-11](https://github.com/Xinoce/Yuta-et-les-11) ; récupérer son historique avec `git clone` pour une nouvelle copie de développement.
 
 ## Installer le projet sur un autre PC
@@ -98,4 +99,5 @@ Il n’y a plus de compte MJ précréé. Au démarrage, le serveur supprime l’
 
 Pour publier la version suivante, augmenter la version racine dans `package.json` et `package-lock.json`, pousser les changements sur `main`, puis créer/pousser le tag `v<version>` (par ex. `v0.1.12`). GitHub Actions lance `npm run package:win -- --publish always`; il n’y a pas besoin d’un secret GitHub ajouté à la configuration, le workflow utilise son `GITHUB_TOKEN` limité au dépôt. La version 0.1.6 ne contient pas l’updater : les utilisateurs doivent passer manuellement à la 0.1.7.
 
-Pour reprendre avec Codex sur un autre PC, ouvrir le dossier du projet et lui demander de lire `README_CODEX.md` ainsi que `README.md` avant de modifier le code. La version actuelle est 0.1.14 ; préserver les dossiers de sauvegarde et les fichiers `tools/` lors d’un transfert.
+Pour reprendre avec Codex sur un autre PC, ouvrir le dossier du projet et lui demander de lire `README_CODEX.md` ainsi que `README.md` avant de modifier le code. La version actuelle est 0.1.15 ; préserver les dossiers de sauvegarde et les fichiers `tools/` lors d’un transfert.
+

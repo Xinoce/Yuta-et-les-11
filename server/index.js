@@ -810,7 +810,7 @@ io.on('connection', (socket) => {
   })
 })
 
-export function startServer({ port = Number(process.env.PORT || 3001), host = '0.0.0.0', onListening } = {}) {
+export function startServer({ port = Number(process.env.PORT || 3001), host = '127.0.0.1', onListening } = {}) {
   server.listen(port, host, () => {
     const address = server.address()
     console.log(`Yuta et les 11 — serveur sur http://localhost:${typeof address === 'object' ? address.port : port}`)
@@ -822,3 +822,4 @@ export function startServer({ port = Number(process.env.PORT || 3001), host = '0
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) startServer()
 
 export { app, db, io, server }
+
