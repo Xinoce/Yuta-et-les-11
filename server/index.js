@@ -48,6 +48,22 @@ async function verifySupabaseIdentity(accessToken) {
     return identity?.id && identity?.email ? { identity, unavailable: false } : { identity: null, unavailable: false }
   } catch { return { identity: null, unavailable: true } }
 }
+async function claimSocialGameInvitation(accessToken, invitationId, gameId, hostUrl) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(invitationId)) return false
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/claim_social_game_invitation`, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_PUBLISHABLE_KEY,
+      authorization: `Bearer ${accessToken}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ p_invitation_id: invitationId, p_game_id: gameId, p_host_url: hostUrl }),
+    signal: AbortSignal.timeout(8000),
+  })
+  if (response.status === 404) throw new Error('La fonction des invitations n’est pas activée dans Supabase. Applique la migration sociale fournie avec l’application.')
+  if (!response.ok) throw new Error('Impossible de vérifier cette invitation. Demande au MJ de la renvoyer.')
+  return (await response.json()) === true
+}
 function usernameFromIdentity(identity) {
   const metadata = identity.user_metadata || {}
   const candidate = cleanText(metadata.username, 24).replace(/[^a-zA-Z0-9._-]/g, '') ||
@@ -185,26 +201,28 @@ app.post('/api/auth/register', async (req, res) => {
   if (!identity) return fail(res, 401, 'La session Supabase a expiré. Connecte-toi à nouveau.')
   const email = cleanText(identity.email, 254).toLowerCase()
   const joinPassword = req.body?.joinPassword
-  const campaignId = Number(req.body?.campaignId)
+  const hasCampaign = req.body?.campaignId !== undefined && req.body?.campaignId !== null && String(req.body.campaignId).trim() !== ''
+  const campaignId = hasCampaign ? Number(req.body.campaignId) : null
   if (!/^[a-zA-Z0-9._-]{2,24}$/.test(username)) return fail(res, 400, 'Le pseudo de connexion doit faire 2 à 24 caractères (lettres, chiffres, . _ -).')
   if (displayName.length < 2) return fail(res, 400, 'Le pseudo affiché doit contenir au moins 2 caractères.')
   if (req.body?.email && cleanText(req.body.email, 254).toLowerCase() !== email) return fail(res, 400, 'L’adresse de la session Supabase ne correspond pas au compte créé.')
-  if (typeof joinPassword !== 'string' || joinPassword.length < 8 || joinPassword.length > 200) return fail(res, 400, 'Le mot de passe de partie doit contenir au moins 8 caractères.')
-  const campaign = db.prepare('SELECT * FROM campaigns WHERE id=?').get(campaignId)
-  if (!campaign) return fail(res, 404, 'Partie introuvable.')
-  if (campaign.status !== 'active') return fail(res, 409, campaign.status === 'paused' ? 'Cette campagne est en pause.' : 'Cette campagne est arrêtée.')
-  if (!await matchesJoinPassword(campaign, joinPassword)) return fail(res, 403, 'Mot de passe de partie incorrect.')
+  if (hasCampaign && (!Number.isSafeInteger(campaignId) || campaignId < 1)) return fail(res, 400, 'Partie invalide.')
+  if (hasCampaign && (typeof joinPassword !== 'string' || joinPassword.length < 8 || joinPassword.length > 200)) return fail(res, 400, 'Le mot de passe de partie doit contenir au moins 8 caractères.')
+  const campaign = hasCampaign ? db.prepare('SELECT * FROM campaigns WHERE id=?').get(campaignId) : null
+  if (hasCampaign && !campaign) return fail(res, 404, 'Partie introuvable.')
+  if (campaign && campaign.status !== 'active') return fail(res, 409, campaign.status === 'paused' ? 'Cette campagne est en pause.' : 'Cette campagne est arrêtée.')
+  if (campaign && !await matchesJoinPassword(campaign, joinPassword)) return fail(res, 403, 'Mot de passe de partie incorrect.')
   if (db.prepare('SELECT 1 FROM users WHERE auth_user_id=?').get(identity.id)) return fail(res, 409, 'Ce compte Supabase possède déjà un profil sur ce PC. Connecte-toi plutôt.')
   if (db.prepare('SELECT 1 FROM users WHERE lower(email)=lower(?) OR username=? COLLATE NOCASE').get(email, username)) return fail(res, 409, 'Ce compte ou ce pseudo existe déjà sur ce PC. Connecte-toi avec ce profil ou lie son compte Supabase dans Réglages.')
   const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12)
-  const joinPasswordHash = campaign.join_password_hash ? campaign.join_password_hash : await bcrypt.hash(String(campaign.invite_code), 12)
   try {
     const result = db.transaction(() => {
       const info = db.prepare(`INSERT INTO users(email,username,password_hash,display_name,role,auth_user_id)
         VALUES(?,?,?,?, 'player',?)`).run(email, username, passwordHash, displayName, identity.id)
-      if (!campaign.join_password_hash) db.prepare('UPDATE campaigns SET join_password_hash=? WHERE id=?').run(joinPasswordHash, campaign.id)
-      db.prepare('INSERT INTO campaign_members(campaign_id,user_id) VALUES(?,?)').run(campaign.id, info.lastInsertRowid)
-      db.prepare('UPDATE users SET active_campaign_id=? WHERE id=?').run(campaign.id, info.lastInsertRowid)
+      if (campaign) {
+        db.prepare('INSERT INTO campaign_members(campaign_id,user_id) VALUES(?,?)').run(campaign.id, info.lastInsertRowid)
+        db.prepare('UPDATE users SET active_campaign_id=? WHERE id=?').run(campaign.id, info.lastInsertRowid)
+      }
       const user = db.prepare('SELECT * FROM users WHERE id=?').get(info.lastInsertRowid)
       return { user }
     })()
@@ -336,7 +354,20 @@ app.post('/api/campaigns/:id/join', authAccount, async (req, res) => {
   const campaign = db.prepare('SELECT * FROM campaigns WHERE id=?').get(Number(req.params.id))
   if (!campaign) return fail(res, 404, 'Partie introuvable.')
   if (campaign.status !== 'active') return fail(res, 409, campaign.status === 'paused' ? 'Cette campagne est en pause.' : 'Cette campagne est arrêtée.')
-  if (!await matchesJoinPassword(campaign, req.body?.joinPassword)) return fail(res, 403, 'Mot de passe de partie incorrect.')
+  let invited = false
+  const invitationId = cleanText(req.body?.invitationId, 80)
+  if (invitationId) {
+    if (!req.user.auth_user_id) return fail(res, 401, 'Connecte-toi avec ton compte joueur en ligne pour utiliser cette invitation.')
+    const { identity, unavailable } = await verifySupabaseIdentity(req.body?.accessToken)
+    if (unavailable) return fail(res, 503, 'Supabase est momentanément inaccessible. Réessaie dans un instant.')
+    if (!identity || identity.id !== req.user.auth_user_id) return fail(res, 401, 'Reconnecte-toi avec le compte auquel cette invitation a été envoyée.')
+    const hostUrl = getTunnelStatus().publicUrl
+    if (!hostUrl) return fail(res, 403, 'Le lien en ligne du MJ a changé. Demande-lui une nouvelle invitation.')
+    try { invited = await claimSocialGameInvitation(req.body.accessToken, invitationId, campaign.game_id, hostUrl) }
+    catch (error) { return fail(res, 503, error.message || 'Impossible de vérifier cette invitation.') }
+    if (!invited) return fail(res, 403, 'Cette invitation est invalide, expirée ou destinée à un autre compte.')
+  }
+  if (!invited && !await matchesJoinPassword(campaign, req.body?.joinPassword)) return fail(res, 403, 'Mot de passe de partie incorrect.')
   if (!campaign.join_password_hash) db.prepare('UPDATE campaigns SET join_password_hash=? WHERE id=?').run(await bcrypt.hash(String(campaign.invite_code), 12), campaign.id)
   db.prepare('INSERT INTO campaign_members(campaign_id,user_id) VALUES(?,?) ON CONFLICT DO NOTHING').run(campaign.id, req.user.id)
   db.prepare('UPDATE users SET active_campaign_id=? WHERE id=?').run(campaign.id, req.user.id)
@@ -763,4 +794,3 @@ export function startServer({ port = Number(process.env.PORT || 3001), host = '0
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) startServer()
 
 export { app, db, io, server }
-
