@@ -11,6 +11,10 @@ type User = { id: number; email: string; username: string; displayName: string; 
 type Campaign = { id: number; gameId: string; name: string; inviteCode: string | null; legacyJoinPassword?: string | null; joinPasswordSet: boolean; isOpen: boolean; status: 'active' | 'paused' | 'stopped'; isOwner: boolean }
 type SessionData = { user: User; campaign: Campaign | null }
 type Lobby = { id: number; gameId: string; name: string; isOpen: boolean; hostName: string; playerCount: number; createdAt: string }
+type SocialProfile = { user_id: string; public_id: string; username: string; display_name: string }
+type SocialFriendship = { user_low: string; user_high: string; created_at: string }
+type SocialFriendRequest = { id: string; sender_id: string; recipient_id: string; status: 'pending' | 'accepted' | 'declined'; created_at: string }
+type SocialGameInvitation = { id: string; sender_id: string; recipient_id: string; game_id: string; campaign_name: string; host_url: string; status: 'pending' | 'accepted' | 'declined' | 'cancelled'; created_at: string; expires_at: string }
 type TunnelStatus = { status: 'stopped' | 'starting' | 'online' | 'stopping' | 'error'; publicUrl: string | null; error: string | null }
 type Character = {
   id: number; campaign_id: number; owner_id: number; name: string; age: string; species: string; origin: string;
@@ -31,7 +35,7 @@ type RollRequest = {
   circumstance: number; context: string; expires_at: string | null; status: string; created_at: string;
   result: { detail: Roll['detail']; total: number; dice: number[]; player: string } | null;
 }
-type View = 'game' | 'table' | 'character' | 'requests' | 'players' | 'settings' | 'selectCharacter'
+type View = 'game' | 'table' | 'character' | 'requests' | 'players' | 'friends' | 'settings' | 'selectCharacter'
 
 const STAT_LIST = ['Force', 'Constitution', 'Agilité', 'Magie', 'Perception', 'Intelligence', 'Charisme']
 const BONUS_POOL = [3, 2, 1, 1, 0, 0, 0]
@@ -144,7 +148,7 @@ export default function App() {
   if (session.user.mustChangePassword) return <><MainMenuActions onMenu={signOut} onSignOut={signOut}/><SettingsView user={session.user} campaign={session.campaign} forced onUserUpdated={(user, campaign) => { setSession({ user, campaign }); setCampaignHome(user.role === 'gm' && (!campaign || campaign.status !== 'active')); setViewHistory([]); setView(user.role === 'gm' && !campaign ? 'settings' : user.role === 'player' ? 'selectCharacter' : 'game') }} onCampaignSelected={onCampaignSelected} onCampaignDeleted={() => undefined} onToast={setToast} /></>
   if (!session.campaign || campaignHome) return session.user.role === 'gm'
     ? <><MainMenuActions onMenu={signOut} onSignOut={signOut}/><CampaignCreateScreen user={session.user} onSelected={onCampaignSelected} onCreated={(campaign, joinPassword) => { setCampaignHome(false); setSession((current) => current ? { ...current, campaign } : current); setLastJoinPassword(joinPassword); setViewHistory([]); setView('game') }} /></>
-    : <WelcomeFlow onAuthenticated={signIn} initialRole="player" />
+    : <PlayerSocialHome user={session.user} page={view === 'settings' ? 'settings' : 'friends'} onPage={(next) => setView(next)} onSignOut={() => void signOut()} onUserUpdated={(user, campaign) => setSession({ user, campaign })} onToast={setToast} />
 
   const isGM = session.user.role === 'gm'
   const ownCharacter = activeCharacter
@@ -155,6 +159,7 @@ export default function App() {
     { id: 'character', label: 'Personnage', icon: BookOpen },
     ...(isGM ? [{ id: 'requests' as View, label: 'Requêtes de test', icon: ClipboardList, badge: pending }] : [{ id: 'requests' as View, label: 'Tests demandés', icon: ClipboardList, badge: pending }]),
     { id: 'players', label: 'Participants', icon: Users },
+    { id: 'friends', label: 'Amis', icon: Users },
     { id: 'settings', label: 'Réglages', icon: Settings },
   ]
 
@@ -178,6 +183,7 @@ export default function App() {
         {!loadingData && view === 'character' && <CharacterView user={session.user} characters={characters} members={members} activeCharacter={activeCharacter} forceNew={creatingCharacter} onCreateNew={() => setCreatingCharacter(true)} onCancelCreate={() => setCreatingCharacter(false)} onActiveCharacter={setActiveCharacter} onSaved={(character) => { setCharacters((current) => [character, ...current.filter((v) => v.id !== character.id)]); if (session.user.role === 'player') { setActiveCharacter(character); setCreatingCharacter(false); navigateTo('game') } else setCreatingCharacter(false) }} onToast={setToast} />}
         {view === 'requests' && <RequestsView isGM={isGM} campaignStatus={session.campaign.status} userId={session.user.id} members={members} characters={characters} requests={requests} onCreate={(payload) => api<RollRequest>('/api/requests', { method: 'POST', body: JSON.stringify(payload) }).then((request) => { setRequests((current) => [request, ...current.filter((v) => v.id !== request.id)]); setToast('La demande de test a été envoyée.') }).catch((e) => setToast(e.message))} onResolve={(id) => api(`/api/requests/${id}/resolve`, { method: 'POST' }).then(() => setToast('Test résolu et partagé avec la table.')).catch((e) => setToast(e.message))} onCancel={(id) => api<RollRequest>(`/api/requests/${id}/cancel`, { method: 'POST' }).then((request) => setRequests((current) => current.map((v) => v.id === id ? request : v))).catch((e) => setToast(e.message))} />}
         {!loadingData && view === 'players' && <PlayersView members={members} campaign={session.campaign} />}
+        {view === 'friends' && <FriendsView user={session.user} campaign={session.campaign} onGoSettings={() => navigateTo('settings')} onToast={setToast} />}
         {!loadingData && view === 'settings' && <SettingsView user={session.user} campaign={session.campaign} lastJoinPassword={lastJoinPassword} onJoinPasswordChanged={setLastJoinPassword} onUserUpdated={(user, campaign) => { setSession({ user, campaign }); setToast('Profil enregistré.'); if (!campaign && user.role === 'gm') navigateTo('table') }} onCampaignSelected={onCampaignSelected} onCampaignDeleted={(deletedId, nextCampaign) => { if (session.campaign?.id === deletedId) { setSession({ user: session.user, campaign: nextCampaign }); setCampaignHome(!nextCampaign || nextCampaign.status !== 'active'); setMembers([]); setCharacters([]); setActiveCharacter(null); setRolls([]); setRequests([]); setGameImages([]); setLoadingData(Boolean(nextCampaign)) } }} onToast={setToast} />}
       </div>
     </main>
@@ -190,7 +196,9 @@ function MainMenuActions({ onMenu, onSignOut }: { onMenu: () => void; onSignOut:
 }
 
 function WelcomeFlow({ onAuthenticated, initialRole = null }: { onAuthenticated: (data: SessionData) => void; initialRole?: 'gm' | 'player' | null }) {
-  const inviteGameId = new URLSearchParams(window.location.search).get('game')?.trim() || ''
+  const inviteParams = new URLSearchParams(window.location.search)
+  const inviteGameId = inviteParams.get('game')?.trim() || ''
+  const socialInvitationId = inviteParams.get('invite')?.trim() || ''
   const [role, setRole] = useState<'gm' | 'player' | null>(initialRole || (inviteGameId ? 'player' : null))
   const [step, setStep] = useState<'role' | 'lobbies' | 'auth'>(initialRole || inviteGameId ? 'lobbies' : 'role')
   const [lobbies, setLobbies] = useState<Lobby[]>([])
@@ -216,9 +224,10 @@ function WelcomeFlow({ onAuthenticated, initialRole = null }: { onAuthenticated:
     const form = new FormData(event.currentTarget)
     const values = Object.fromEntries(form.entries())
     try {
-      if (role === 'player' && !selectedLobby) throw new Error('Choisissez une partie avant de continuer.')
       let data: SessionData
+      let accessToken = ''
       if (register) {
+        if (role !== 'player') throw new Error('Seuls les comptes joueurs peuvent être créés depuis cet écran.')
         const email = String(values.email || '').trim().toLowerCase()
         const password = String(values.password || '')
         const { data: signedUp, error: signUpError } = await supabase.auth.signUp({
@@ -228,17 +237,18 @@ function WelcomeFlow({ onAuthenticated, initialRole = null }: { onAuthenticated:
         if (signUpError) throw new Error(signUpError.message)
         if (!signedUp.session) {
           setRegister(false)
-          throw new Error('Compte créé. Confirme ton adresse e-mail, puis reviens ici et connecte-toi avec cette adresse. Le profil joueur sera créé à la première connexion.')
+          throw new Error('Compte créé. Confirme ton adresse e-mail, puis connecte-toi avec cette adresse pour terminer la création du profil joueur.')
         }
+        accessToken = signedUp.session.access_token
         data = await api<SessionData>('/api/auth/register', { method: 'POST', body: JSON.stringify({
-          accessToken: signedUp.session.access_token, email, username: values.username, displayName: values.displayName,
-          joinPassword: values.joinPassword, campaignId: selectedLobby?.id,
+          accessToken, email, username: values.username, displayName: values.displayName,
         }) })
       } else if (String(values.identifier || '').includes('@')) {
         const email = String(values.identifier).trim().toLowerCase()
         const { data: signedIn, error: signInError } = await supabase.auth.signInWithPassword({ email, password: String(values.password || '') })
         if (signInError || !signedIn.session) throw new Error(signInError?.message || 'Connexion Supabase impossible.')
-        try { data = await api<SessionData>('/api/auth/login', { method: 'POST', body: JSON.stringify({ accessToken: signedIn.session.access_token, role }) }) }
+        accessToken = signedIn.session.access_token
+        try { data = await api<SessionData>('/api/auth/login', { method: 'POST', body: JSON.stringify({ accessToken, role }) }) }
         catch (error) { await supabase.auth.signOut(); throw error }
       } else {
         // Keep legacy local sign-in available so current MJ/player profiles can link Supabase from Settings.
@@ -249,24 +259,29 @@ function WelcomeFlow({ onAuthenticated, initialRole = null }: { onAuthenticated:
         await supabase.auth.signOut()
         throw new Error(role === 'gm' ? 'Ce compte n’a pas le rôle Maître du Jeu.' : 'Ce compte est un compte MJ. Choisissez le parcours MJ.')
       }
-      if (role === 'player' && !register && selectedLobby) {
-        await api(`/api/campaigns/${selectedLobby.id}/join`, { method: 'POST', body: JSON.stringify({ joinPassword: values.joinPassword }) })
-        onAuthenticated(await api<SessionData>('/api/me'))
-      } else onAuthenticated(data)
+      if (role === 'player' && selectedLobby) {
+        const { data: auth } = accessToken ? { data: { session: { access_token: accessToken } } } : await supabase.auth.getSession()
+        await api(`/api/campaigns/${selectedLobby.id}/join`, { method: 'POST', body: JSON.stringify({
+          joinPassword: values.joinPassword, invitationId: socialInvitationId || undefined,
+          accessToken: auth.session?.access_token,
+        }) })
+        data = await api<SessionData>('/api/me')
+      }
+      onAuthenticated(data)
     }
     catch (e) { setError(e instanceof Error ? e.message : 'Connexion impossible.') }
     finally { setBusy(false) }
   }
   return <div className="welcome-screen"><div className="welcome-backdrop" aria-hidden="true"><div className="arcane-sigil"/><div className="arcane-sigil arcane-sigil-small"/></div><div className="welcome-top"><div className="brand-mark"><Sparkles size={19}/></div><span>YUTA ET LES 11</span><i>·</i><small>UNE CAMPAGNE À ÉCRIRE</small></div><div className="welcome-body"><div className="welcome-copy"><span className="eyebrow">MAGIE · DESTIN · MYSTÈRE</span><h1>Un monde à part,<br/>des destins <em>à forger.</em></h1><p>Le hasard trace la voie.<br/>Vos choix en font une légende.</p><div className="welcome-stars">✦ <span>LA TABLE ATTEND SON GROUPE</span> ✦</div></div>
     {step === 'role' && <section className="role-card"><div className="eyebrow">COMMENT REJOINS-TU L’AVENTURE ?</div><h2>Choisis ta place</h2><button className="role-choice gm" onClick={() => { setRole('gm'); setStep('auth'); setRegister(false) }}><span className="role-icon"><ScrollText size={20}/></span><span><strong>Je suis le Maître du Jeu</strong><small>Créer la campagne et guider le groupe</small></span><ChevronRight size={17}/></button><button className="role-choice player" onClick={() => { setRole('player'); setStep('lobbies'); setRegister(false); void refreshLobbies() }}><span className="role-icon"><Compass size={20}/></span><span><strong>Je suis un joueur</strong><small>Choisir un héros et trouver une partie</small></span><ChevronRight size={17}/></button><div className="role-footer"><Shield size={14}/> Comptes et parties gardés sur le PC du MJ</div></section>}
-    {step === 'lobbies' && <section className="role-card lobby-card"><button className="back-link" onClick={() => { setStep('role'); setError('') }}><ArrowLeft size={14}/> Choisir un autre rôle</button><div className="eyebrow">PARCOURS JOUEUR</div><h2>Trouve ta partie</h2><p className="lobby-intro">Ouvre le lien envoyé par le MJ pour accéder à sa partie. Son ID sert ensuite à la retrouver dans cette liste.</p><button className="button-outline refresh-lobbies" onClick={() => void refreshLobbies()} disabled={busy}><RefreshCw size={15} className={busy ? 'spin' : ''}/>{busy ? 'Recherche…' : 'Actualiser les parties'}</button><label className="lobby-search-label">ID de partie<input value={lobbySearch} onChange={(e) => setLobbySearch(e.target.value)} placeholder="Ex. Y11-4F2A…" /></label>{error && <div className="form-error">{error}</div>}<div className="lobby-list">{visibleLobbies.length ? visibleLobbies.map((lobby) => <button className="lobby-row" key={lobby.id} onClick={() => { setSelectedLobby(lobby); setStep('auth'); setError('') }}><span className="lobby-glyph"><Gamepad2 size={17}/></span><span><strong>{lobby.name}</strong><small>{lobby.gameId} · MJ {lobby.hostName} · {lobby.playerCount} participant{lobby.playerCount === 1 ? '' : 's'}</small></span><ChevronRight size={16}/></button>) : <div className="lobby-empty"><Compass size={20}/><strong>Aucune partie repérée</strong><span>{inviteGameId ? 'Lien ou ID de partie invalide ou session indisponible.' : 'Depuis le lien transmis par le MJ, saisis son ID si nécessaire.'}</span></div>}</div></section>}
-    {step === 'auth' && <section className="role-card auth-card"><button className="back-link" onClick={() => { setStep(role === 'player' ? 'lobbies' : 'role'); setError('') }}><ArrowLeft size={14}/> Retour</button><div className="eyebrow">{role === 'gm' ? 'ESPACE MJ' : selectedLobby?.name.toUpperCase()}</div><h2>{register ? 'Créer ton compte' : 'Content de te revoir'}</h2><p className="lobby-intro">{role === 'gm' ? 'Connecte-toi pour préparer ta campagne.' : `Rejoins la partie de ${selectedLobby?.hostName || 'ton groupe'}.`}</p>{role === 'player' && selectedLobby && <div className="selected-game-id"><span>ID DE PARTIE</span><strong>{selectedLobby.gameId}</strong></div>}<form onSubmit={submit} className="auth-form">
+    {step === 'lobbies' && <section className="role-card lobby-card"><button className="back-link" onClick={() => { setStep('role'); setError('') }}><ArrowLeft size={14}/> Choisir un autre rôle</button><div className="eyebrow">PARCOURS JOUEUR</div><h2>Trouve ta partie</h2><p className="lobby-intro">Ouvre le lien du MJ pour rejoindre une session, ou crée ton compte joueur pour ajouter des amis et recevoir leurs invitations.</p><button className="button-outline refresh-lobbies" onClick={() => void refreshLobbies()} disabled={busy}><RefreshCw size={15} className={busy ? 'spin' : ''}/>{busy ? 'Recherche…' : 'Actualiser les parties'}</button><label className="lobby-search-label">ID de partie<input value={lobbySearch} onChange={(e) => setLobbySearch(e.target.value)} placeholder="Ex. Y11-4F2A…" /></label>{error && <div className="form-error">{error}</div>}<div className="lobby-list">{visibleLobbies.length ? visibleLobbies.map((lobby) => <button className="lobby-row" key={lobby.id} onClick={() => { setSelectedLobby(lobby); setStep('auth'); setRegister(false); setError('') }}><span className="lobby-glyph"><Gamepad2 size={17}/></span><span><strong>{lobby.name}</strong><small>{lobby.gameId} · MJ {lobby.hostName} · {lobby.playerCount} participant{lobby.playerCount === 1 ? '' : 's'}</small></span><ChevronRight size={16}/></button>) : <div className="lobby-empty"><Compass size={20}/><strong>Aucune partie repérée</strong><span>{inviteGameId ? 'Lien ou ID de partie invalide ou session indisponible.' : 'Tu peux quand même créer ton compte, puis rejoindre une partie plus tard.'}</span></div>}</div><div className="lobby-account-actions"><button className="text-link" onClick={() => { setSelectedLobby(null); setRole('player'); setRegister(false); setStep('auth'); setError('') }}>J’ai déjà un compte joueur</button><button className="button-outline" onClick={() => { setSelectedLobby(null); setRole('player'); setRegister(true); setStep('auth'); setError('') }}>Créer un compte joueur</button></div></section>}
+    {step === 'auth' && <section className="role-card auth-card"><button className="back-link" onClick={() => { setStep(role === 'player' ? 'lobbies' : 'role'); setError('') }}><ArrowLeft size={14}/> Retour</button><div className="eyebrow">{role === 'gm' ? 'ESPACE MJ' : selectedLobby?.name.toUpperCase() || 'COMPTE JOUEUR'}</div><h2>{register ? 'Créer ton compte' : 'Content de te revoir'}</h2><p className="lobby-intro">{role === 'gm' ? 'Connecte-toi pour préparer ta campagne.' : selectedLobby ? `Rejoins la partie de ${selectedLobby.hostName}.` : 'Connecte-toi pour gérer tes amis et retrouver tes invitations.'}</p>{role === 'player' && selectedLobby && <div className="selected-game-id"><span>{socialInvitationId ? 'INVITATION PERSONNELLE' : 'ID DE PARTIE'}</span><strong>{selectedLobby.gameId}</strong>{socialInvitationId && <small>Ton invitation autorise l’accès sans le mot de passe de campagne.</small>}</div>}<form onSubmit={submit} className="auth-form">
       {register && <><label>Pseudo de connexion<input name="username" minLength={2} maxLength={24} placeholder="Ex. Mira" required autoComplete="username"/></label><label>Pseudo affiché<input name="displayName" minLength={2} maxLength={40} placeholder="Comment t’appelle-t-on ?" required autoComplete="nickname"/></label><label>Adresse e-mail<input name="email" type="email" placeholder="toi@exemple.fr" required autoComplete="email"/></label></>}
       {!register && <label>Adresse e-mail ou ancien pseudo<input name="identifier" placeholder={role === 'gm' ? 'Yuta ou toi@exemple.fr' : 'toi@exemple.fr'} required autoComplete="username"/></label>}
-       {role === 'player' && <label>Mot de passe de la partie<input name="joinPassword" type="password" minLength={8} maxLength={200} placeholder="Mot de passe transmis par le MJ" required autoComplete="off"/></label>}
+       {role === 'player' && selectedLobby && !socialInvitationId && <label>Mot de passe de la partie<input name="joinPassword" type="password" minLength={8} maxLength={200} placeholder="Mot de passe transmis par le MJ" required autoComplete="off"/></label>}
       <label>Mot de passe<input name="password" type="password" minLength={register ? 10 : 1} placeholder={register ? '10 caractères minimum' : 'Mot de passe'} required autoComplete={register ? 'new-password' : 'current-password'}/></label>
       {role === 'gm' && !register && <div className="admin-hint"><KeyRound size={14}/><span>Première connexion MJ : <strong>Yuta / admin123</strong>. Change ton mot de passe, crée une campagne, puis lie ton compte Supabase dans Réglages.</span></div>}
-      {error && <div className="form-error">{error}</div>}<button className="button-primary auth-submit" disabled={busy}>{busy ? 'Connexion…' : register ? 'Rejoindre cette partie' : 'Continuer'} <ArrowUpRight size={16}/></button></form>
+      {error && <div className="form-error">{error}</div>}<button className="button-primary auth-submit" disabled={busy}>{busy ? 'Connexion…' : register ? selectedLobby ? 'Créer le compte et rejoindre' : 'Créer mon compte joueur' : selectedLobby ? 'Se connecter et rejoindre' : 'Se connecter'} <ArrowUpRight size={16}/></button></form>
       {role === 'player' && <button className="text-link" onClick={() => { setRegister(!register); setError('') }}>{register ? 'J’ai déjà un compte' : 'Créer un compte joueur'}</button>}
       <div className="role-footer"><Shield size={14}/> {role === 'gm' ? 'Les réglages privés restent visibles uniquement par le MJ.' : 'Après connexion, tu pourras créer ou choisir ton personnage.'}</div></section>}
   </div><div className="welcome-bottom"><span>✦</span> DES HÉROS ORDINAIRES, DES AVENTURES EXTRAORDINAIRES <span>✦</span></div></div>
@@ -714,4 +729,200 @@ function RequestList({ requests, isGM, userId, onResolve, onCancel }: { requests
 function PlayersView({ members, campaign }: { members: Member[]; campaign: Campaign }) {
   const [copied, setCopied] = useState(false)
   return <><div className="welcome-row"><div><div className="eyebrow">LES VISAGES DU RÉCIT</div><h1>À la <em>table</em></h1><p className="muted">Les personnes réunies dans cette campagne privée.</p></div></div><div className="players-layout"><section className="panel member-panel"><div className="panel-heading"><div><div className="eyebrow">COMPAGNONS DE ROUTE</div><h2>Participants</h2></div><span className="request-count">{members.length} inscrits</span></div><div className="member-list">{members.map((member) => <div className="member-card" key={member.id}><div className="member-avatar-wrap"><div className="avatar large">{member.displayName.slice(0,1).toUpperCase()}</div><i className={member.online ? 'status-dot' : 'status-dot offline'}/></div><div className="member-detail"><strong>{member.displayName}</strong><span>{member.role === 'gm' ? 'Maître du Jeu' : member.characterName || 'Personnage à créer'}</span></div><span className={member.online ? 'member-online' : 'member-offline'}>{member.online ? 'En ligne' : 'Absent'}</span></div>)}</div></section><section className="panel invite-panel"><div className="invite-art"><div className="invite-ring"><Users size={24}/></div></div><div className="eyebrow">UNE PLACE AUTOUR DU FEU</div><h2>Inviter un joueur</h2><p className="muted">Partagez le lien en ligne depuis les réglages, puis transmettez le mot de passe de <strong>{campaign.name}</strong> séparément.</p><div className="invite-code"><span>{campaign.gameId}</span><button className="button-outline" onClick={() => { void navigator.clipboard.writeText(campaign.gameId); setCopied(true); window.setTimeout(() => setCopied(false), 1800) }}>{copied ? <Check size={15}/> : <ClipboardList size={15}/>} {copied ? 'Copié' : 'Copier l’ID'}</button></div><span className="invite-foot"><Shield size={13}/> Cet ID n’inclut aucune adresse IP.</span></section></div></>
+}
+
+function PlayerSocialHome({ user, page, onPage, onSignOut, onUserUpdated, onToast }: {
+  user: User; page: 'friends' | 'settings'; onPage: (page: 'friends' | 'settings') => void; onSignOut: () => void;
+  onUserUpdated: (user: User, campaign: Campaign | null) => void; onToast: (message: string) => void;
+}) {
+  return <div className="app-shell social-home-shell">
+    <aside className="sidebar">
+      <div className="brand"><div className="brand-mark"><Sparkles size={19}/></div><div><strong>Yuta et les 11</strong><span>ESPACE JOUEUR</span></div></div>
+      <div className="side-label">VOTRE COMPTE</div>
+      <nav className="side-nav">
+        <button className={page === 'friends' ? 'nav-item active' : 'nav-item'} onClick={() => onPage('friends')}><Users size={17}/><span>Amis</span></button>
+        <button className={page === 'settings' ? 'nav-item active' : 'nav-item'} onClick={() => onPage('settings')}><Settings size={17}/><span>Réglages</span></button>
+      </nav>
+      <div className="sidebar-bottom"><div className="profile-row"><div className="avatar">{user.displayName.slice(0, 1).toUpperCase()}</div><div className="profile-copy"><strong>{user.displayName}</strong><span>Joueur</span></div></div></div>
+    </aside>
+    <main className="main-area"><header className="topbar"><div className="breadcrumb">ESPACE JOUEUR <span>/</span> <strong>{page === 'friends' ? 'Amis' : 'Réglages'}</strong></div><div className="top-actions"><button className="topbar-nav-button logout" onClick={onSignOut}><LogOut size={14}/><span>Déconnexion</span></button></div></header>
+      <div className="page-content">{page === 'friends'
+        ? <FriendsView user={user} campaign={null} onGoSettings={() => onPage('settings')} onToast={onToast}/>
+        : <SettingsView user={user} campaign={null} onUserUpdated={onUserUpdated} onCampaignSelected={() => undefined} onCampaignDeleted={() => undefined} onToast={onToast}/>}</div>
+    </main>
+  </div>
+}
+
+function FriendsView({ user, campaign, onGoSettings, onToast }: {
+  user: User; campaign: Campaign | null; onGoSettings: () => void; onToast: (message: string) => void;
+}) {
+  const [profile, setProfile] = useState<SocialProfile | null>(null)
+  const [friends, setFriends] = useState<SocialProfile[]>([])
+  const [incomingRequests, setIncomingRequests] = useState<SocialFriendRequest[]>([])
+  const [outgoingRequests, setOutgoingRequests] = useState<SocialFriendRequest[]>([])
+  const [incomingInvitations, setIncomingInvitations] = useState<SocialGameInvitation[]>([])
+  const [outgoingInvitations, setOutgoingInvitations] = useState<SocialGameInvitation[]>([])
+  const [profileById, setProfileById] = useState<Record<string, SocialProfile>>({})
+  const [publicId, setPublicId] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [pendingAction, setPendingAction] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [tunnel, setTunnel] = useState<TunnelStatus>({ status: 'stopped', publicUrl: null, error: null })
+  const social = supabase as any
+
+  async function loadSocial() {
+    if (!user.authLinked) { setLoading(false); return }
+    setError('')
+    try {
+      const { data: authData, error: authError } = await supabase.auth.getUser()
+      if (authError || !authData.user) throw new Error('Reconnecte ton compte en ligne depuis Réglages pour utiliser la fonction Amis.')
+      const { data: myProfileData, error: profileError } = await social.rpc('sync_my_social_profile', {
+        p_username: user.username, p_display_name: user.displayName,
+      })
+      if (profileError) throw profileError
+      const myProfile = myProfileData as SocialProfile
+      const uid = authData.user.id
+      const [friendshipsResult, incomingResult, outgoingResult, receivedGameResult, sentGameResult] = await Promise.all([
+        social.from('social_friendships').select('user_low,user_high,created_at').or(`user_low.eq.${uid},user_high.eq.${uid}`),
+        social.from('social_friend_requests').select('id,sender_id,recipient_id,status,created_at').eq('recipient_id', uid).eq('status', 'pending').order('created_at', { ascending: false }),
+        social.from('social_friend_requests').select('id,sender_id,recipient_id,status,created_at').eq('sender_id', uid).eq('status', 'pending').order('created_at', { ascending: false }),
+        social.from('social_game_invitations').select('id,sender_id,recipient_id,game_id,campaign_name,host_url,status,created_at,expires_at').eq('recipient_id', uid).in('status', ['pending', 'accepted']).order('created_at', { ascending: false }),
+        social.from('social_game_invitations').select('id,sender_id,recipient_id,game_id,campaign_name,host_url,status,created_at,expires_at').eq('sender_id', uid).order('created_at', { ascending: false }).limit(25),
+      ])
+      for (const result of [friendshipsResult, incomingResult, outgoingResult, receivedGameResult, sentGameResult]) if (result.error) throw result.error
+      const nextFriendships = (friendshipsResult.data || []) as SocialFriendship[]
+      const nextIncoming = (incomingResult.data || []) as SocialFriendRequest[]
+      const nextOutgoing = (outgoingResult.data || []) as SocialFriendRequest[]
+      const nextIncomingInvites = (receivedGameResult.data || []) as SocialGameInvitation[]
+      const nextOutgoingInvites = (sentGameResult.data || []) as SocialGameInvitation[]
+      const friendIds = nextFriendships.map((item) => item.user_low === uid ? item.user_high : item.user_low)
+      const relatedIds = [...new Set([
+        ...friendIds, ...nextIncoming.map((item) => item.sender_id), ...nextOutgoing.map((item) => item.recipient_id),
+        ...nextIncomingInvites.map((item) => item.sender_id), ...nextOutgoingInvites.map((item) => item.recipient_id),
+      ])]
+      let relatedProfiles: SocialProfile[] = []
+      if (relatedIds.length) {
+        const { data, error: relatedError } = await social.from('social_profiles').select('user_id,public_id,username,display_name').in('user_id', relatedIds)
+        if (relatedError) throw relatedError
+        relatedProfiles = (data || []) as SocialProfile[]
+      }
+      const byId = Object.fromEntries(relatedProfiles.map((item) => [item.user_id, item])) as Record<string, SocialProfile>
+      setProfile(myProfile); setProfileById(byId)
+      setFriends(friendIds.map((id) => byId[id]).filter(Boolean))
+      setIncomingRequests(nextIncoming); setOutgoingRequests(nextOutgoing)
+      setIncomingInvitations(nextIncomingInvites); setOutgoingInvitations(nextOutgoingInvites)
+      if (user.role === 'gm' && campaign?.status === 'active') {
+        try { setTunnel(await api<TunnelStatus>('/api/tunnel')) }
+        catch { setTunnel({ status: 'stopped', publicUrl: null, error: 'Vérifie l’hébergement dans Réglages.' }) }
+      } else setTunnel({ status: 'stopped', publicUrl: null, error: null })
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Impossible de charger les amis.'
+      const schemaMissing = /social_profiles|social_friendships|social_friend_requests|social_game_invitations|sync_my_social_profile|schema cache|does not exist|could not find function/i.test(message)
+      setError(schemaMissing
+        ? 'La fonction Amis doit d’abord être activée dans Supabase. Applique le fichier supabase/migrations/20261102000000_social_friends_invites.sql dans le SQL Editor du projet.'
+        : message)
+    } finally { setLoading(false) }
+  }
+
+  useEffect(() => {
+    let disposed = false
+    const refresh = async () => { if (!disposed) await loadSocial() }
+    void refresh()
+    const timer = window.setInterval(() => { void refresh() }, 30000)
+    return () => { disposed = true; window.clearInterval(timer) }
+  }, [user.authLinked, user.username, user.displayName, user.role, campaign?.id, campaign?.status])
+
+  async function addFriend(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true); setError('')
+    try {
+      const code = publicId.trim().toUpperCase()
+      const { data: target, error: findError } = await social.rpc('find_social_profile', { p_public_id: code })
+      if (findError) throw findError
+      if (!target?.user_id) throw new Error('Aucun compte trouvé avec cet ID joueur.')
+      const { error: requestError } = await social.rpc('send_social_friend_request', { p_recipient_id: target.user_id })
+      if (requestError) throw requestError
+      setPublicId('')
+      await loadSocial()
+      onToast(`Demande envoyée à ${target.display_name}.`)
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Impossible d’envoyer la demande.') }
+    finally { setBusy(false) }
+  }
+
+  async function respondFriendRequest(request: SocialFriendRequest, accept: boolean) {
+    setPendingAction(request.id); setError('')
+    try {
+      const { error: responseError } = await social.rpc('respond_social_friend_request', { p_request_id: request.id, p_accept: accept })
+      if (responseError) throw responseError
+      await loadSocial()
+      onToast(accept ? 'Ami ajouté.' : 'Demande refusée.')
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Impossible de répondre à cette demande.') }
+    finally { setPendingAction('') }
+  }
+
+  async function sendGameInvitation(friend: SocialProfile) {
+    if (!campaign || user.role !== 'gm' || !campaign.isOwner) return
+    setPendingAction(friend.user_id); setError('')
+    try {
+      const currentTunnel = tunnel.status === 'online' && tunnel.publicUrl ? tunnel : await api<TunnelStatus>('/api/tunnel')
+      if (currentTunnel.status !== 'online' || !currentTunnel.publicUrl) throw new Error('Héberge d’abord la campagne en ligne dans Réglages.')
+      const { error: inviteError } = await social.rpc('send_social_game_invitation', {
+        p_recipient_id: friend.user_id, p_game_id: campaign.gameId, p_campaign_name: campaign.name, p_host_url: currentTunnel.publicUrl,
+      })
+      if (inviteError) throw inviteError
+      await loadSocial()
+      onToast(`Invitation envoyée à ${friend.display_name}.`)
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Impossible d’envoyer cette invitation.') }
+    finally { setPendingAction('') }
+  }
+
+  async function answerGameInvitation(invite: SocialGameInvitation, accept: boolean) {
+    setPendingAction(invite.id); setError('')
+    try {
+      const { error: answerError } = await social.rpc('respond_social_game_invitation', { p_invitation_id: invite.id, p_accept: accept })
+      if (answerError) throw answerError
+      if (accept) {
+        const destination = new URL(`${invite.host_url}/`)
+        destination.searchParams.set('game', invite.game_id)
+        destination.searchParams.set('invite', invite.id)
+        window.location.assign(destination.toString())
+        return
+      }
+      await loadSocial()
+      onToast('Invitation refusée.')
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Impossible de répondre à cette invitation.') }
+    finally { setPendingAction('') }
+  }
+
+  async function copyPublicId() {
+    if (!profile) return
+    try { await navigator.clipboard.writeText(profile.public_id); setCopied(true); window.setTimeout(() => setCopied(false), 1800) }
+    catch { setError('Le presse-papiers n’est pas accessible sur cet appareil.') }
+  }
+
+  const profileFor = (id: string) => profileById[id]
+  const invitationExpired = (invite: SocialGameInvitation) => new Date(invite.expires_at).getTime() <= Date.now()
+  const tunnelReady = Boolean(campaign && user.role === 'gm' && campaign.isOwner && campaign.status === 'active' && tunnel.status === 'online' && tunnel.publicUrl)
+
+  return <>
+    <div className="welcome-row"><div><div className="eyebrow">COMPAGNONS DE ROUTE</div><h1>Amis et <em>invitations</em></h1><p className="muted">Retrouve tes joueurs, MJ et prochaines parties depuis ton ID personnel.</p></div><button className="button-outline social-refresh" onClick={() => { setLoading(true); void loadSocial() }} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''}/>{loading ? 'Actualisation…' : 'Actualiser'}</button></div>
+    {!user.authLinked ? <section className="panel social-link-required"><div className="social-section-icon"><Shield size={20}/></div><div><h2>Compte en ligne requis</h2><p>Lie ou crée un compte Supabase dans Réglages pour recevoir un ID joueur et synchroniser tes amis sur les différents PC.</p><button className="button-primary" onClick={onGoSettings}>Ouvrir les réglages <ArrowUpRight size={14}/></button></div></section> : <>
+      {error && <div className="form-error social-error"><span>{error}</span>{error.includes('20261102000000_social_friends_invites.sql') && <a className="social-migration-link" href="https://raw.githubusercontent.com/Xinoce/Yuta-et-les-11/main/supabase/migrations/20261102000000_social_friends_invites.sql">Ouvrir le script SQL à appliquer</a>}</div>}
+      {profile && <section className="panel social-id-panel"><div><div className="eyebrow">TON ID JOUEUR</div><h2>{profile.public_id}</h2><p>Partage cet ID pour que tes amis puissent t’ajouter. Ton adresse e-mail reste privée.</p></div><button className="button-outline" onClick={() => void copyPublicId()}>{copied ? <Check size={15}/> : <Copy size={15}/>} {copied ? 'Copié' : 'Copier mon ID'}</button></section>}
+      <div className="social-grid"><section className="panel social-add-panel"><div className="panel-heading"><div><div className="eyebrow">NOUVEAUX COMPAGNONS</div><h2>Ajouter un ami</h2></div><span className="subtle-icon"><Users size={17}/></span></div><p className="muted">Saisis l’ID joueur reçu. Une demande sera envoyée et l’autre personne pourra l’accepter.</p><form className="social-add-form" onSubmit={addFriend}><label>ID joueur<input value={publicId} onChange={(event) => setPublicId(event.target.value)} placeholder="Y11-A1B2C3D4E5" minLength={12} maxLength={14} required/></label><button className="button-primary" disabled={busy || !publicId.trim()}><Send size={15}/>{busy ? 'Envoi…' : 'Envoyer la demande'}</button></form></section>
+        <section className="panel social-inbox-panel"><div className="panel-heading"><div><div className="eyebrow">À TRAITER</div><h2>Demandes d’amitié</h2></div><span className="request-count">{incomingRequests.length} reçue{incomingRequests.length === 1 ? '' : 's'}</span></div><div className="social-list">{incomingRequests.length ? incomingRequests.map((request) => { const sender = profileFor(request.sender_id); return <article className="social-row" key={request.id}><div className="social-avatar">{sender?.display_name.slice(0,1).toUpperCase() || '?'}</div><div className="social-row-copy"><strong>{sender?.display_name || 'Joueur'}</strong><small>{sender?.public_id || 'Demande reçue'}</small></div><button className="button-outline" onClick={() => void respondFriendRequest(request, true)} disabled={pendingAction === request.id}><Check size={14}/> Accepter</button><button className="button-quiet danger-text" onClick={() => void respondFriendRequest(request, false)} disabled={pendingAction === request.id} aria-label="Refuser"><X size={15}/></button></article>}) : <div className="social-empty">Aucune demande en attente.</div>}</div></section>
+      </div>
+
+      {incomingInvitations.length > 0 && <section className="panel social-games-panel"><div className="panel-heading"><div><div className="eyebrow">ON T’ATTEND À LA TABLE</div><h2>Invitations de partie</h2></div><span className="request-count">{incomingInvitations.length}</span></div><div className="social-list">{incomingInvitations.map((invite) => { const inviter = profileFor(invite.sender_id); const expired = invitationExpired(invite); return <article className="social-game-invite" key={invite.id}><div className="social-section-icon"><Gamepad2 size={19}/></div><div className="social-row-copy"><strong>{invite.campaign_name}</strong><small>MJ {inviter?.display_name || 'ami'} · {invite.game_id} · {expired ? 'Expirée' : invite.status === 'accepted' ? 'Acceptée' : 'Expire dans 7 jours'}</small></div><button className="button-primary" onClick={() => void answerGameInvitation(invite, true)} disabled={pendingAction === invite.id || expired}>Rejoindre <ArrowUpRight size={14}/></button>{invite.status === 'pending' && <button className="button-quiet danger-text" onClick={() => void answerGameInvitation(invite, false)} disabled={pendingAction === invite.id}>Refuser</button>}</article>})}</div></section>}
+
+      <section className="panel social-friends-panel"><div className="panel-heading"><div><div className="eyebrow">VOTRE CERCLE</div><h2>Amis</h2></div><span className="request-count">{friends.length}</span></div><div className="social-list">{friends.length ? friends.map((friend) => { const hasPendingInvite = outgoingInvitations.some((invite) => invite.recipient_id === friend.user_id && invite.status === 'pending' && !invitationExpired(invite)); return <article className="social-row" key={friend.user_id}><div className="social-avatar">{friend.display_name.slice(0,1).toUpperCase()}</div><div className="social-row-copy"><strong>{friend.display_name}</strong><small>{friend.public_id}</small></div>{user.role === 'gm' && campaign?.isOwner && <button className="button-outline" onClick={() => void sendGameInvitation(friend)} disabled={!tunnelReady || hasPendingInvite || pendingAction === friend.user_id} title={!tunnelReady ? 'Démarre le lien en ligne dans Réglages.' : undefined}><Send size={14}/>{hasPendingInvite ? 'Invitation envoyée' : 'Inviter à la partie'}</button>}</article>}) : <div className="social-empty">Aucun ami pour le moment. Ajoute un joueur avec son ID ci-dessus.</div>}</div></section>
+
+      {outgoingRequests.length > 0 && <section className="panel social-sent-panel"><div className="panel-heading"><div><div className="eyebrow">EN ATTENTE</div><h2>Demandes envoyées</h2></div><span className="request-count">{outgoingRequests.length}</span></div><div className="social-list">{outgoingRequests.map((request) => { const target = profileFor(request.recipient_id); return <div className="social-row" key={request.id}><div className="social-avatar">{target?.display_name.slice(0,1).toUpperCase() || '?'}</div><div className="social-row-copy"><strong>{target?.display_name || 'Joueur'}</strong><small>{target?.public_id || 'Demande en attente'}</small></div><span className="social-pending-label">En attente</span></div>})}</div></section>}
+
+      {outgoingInvitations.length > 0 && <section className="panel social-sent-panel"><div className="panel-heading"><div><div className="eyebrow">INVITATIONS ENVOYÉES</div><h2>Suivi des invitations</h2></div><span className="request-count">{outgoingInvitations.length}</span></div><div className="social-list">{outgoingInvitations.slice(0, 8).map((invite) => { const recipient = profileFor(invite.recipient_id); return <div className="social-row" key={invite.id}><div className="social-avatar"><Gamepad2 size={15}/></div><div className="social-row-copy"><strong>{invite.campaign_name} · {recipient?.display_name || 'Ami'}</strong><small>{invite.game_id} · {invite.status === 'accepted' ? 'Acceptée' : invite.status === 'declined' ? 'Refusée' : invitationExpired(invite) ? 'Expirée' : 'En attente'}</small></div></div>})}</div></section>}
+
+      {user.role === 'gm' && campaign?.isOwner && <div className={`social-host-status ${tunnelReady ? 'online' : ''}`}><Globe2 size={15}/><span>{tunnelReady ? 'Ta partie est en ligne : tu peux envoyer des invitations à tes amis.' : campaign.status !== 'active' ? 'Réactive la campagne avant d’envoyer des invitations.' : 'Pour inviter un ami, démarre d’abord l’hébergement en ligne dans Réglages.'}</span><button className="text-link" onClick={onGoSettings}>Réglages</button></div>}
+    </>}
+  </>
 }
