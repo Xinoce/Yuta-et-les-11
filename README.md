@@ -4,7 +4,7 @@ Application multijoueur en français pour jouer à **Yuta et les 11**. L’inter
 
 ## Installer et démarrer sous Windows
 
-Téléchargez puis lancez `release\Yuta-et-les-11-Setup-0.1.8.exe`. L’application s’ouvre dans sa propre fenêtre et n’exige pas que Node.js soit installé sur le PC de jeu. Un raccourci est ajouté au bureau et au menu Démarrer. Les sauvegardes sont conservées dans les données utilisateur Windows de l’application.
+Téléchargez puis lancez `release\Yuta-et-les-11-Setup-0.1.9.exe`. L’application s’ouvre dans sa propre fenêtre et n’exige pas que Node.js soit installé sur le PC de jeu. Un raccourci est ajouté au bureau et au menu Démarrer. Les sauvegardes sont conservées dans les données utilisateur Windows de l’application.
 
 À partir de la 0.1.7, l’application vérifie les mises à jour au démarrage, les télécharge en arrière-plan et propose de redémarrer pour les installer. Les utilisateurs de la 0.1.6 doivent installer la 0.1.7 manuellement une première fois.
 
@@ -30,7 +30,7 @@ Le compte impose de choisir un nouveau mot de passe à la première connexion. L
 3. Les joueurs ouvrent le lien du MJ dans leur navigateur. L’ID sélectionne directement la partie ; ils saisissent le mot de passe de partie puis créent un compte Supabase ou se connectent avec leur adresse e-mail. Un compte joueur peut rejoindre plusieurs PC MJ avec la même identité.
 4. Un joueur sans personnage est dirigé vers la création de sa fiche. S’il en a déjà, il choisit lequel jouer. Plusieurs personnages peuvent être rattachés à son compte.
 
-Les campagnes visibles apparaissent dans la liste actualisée depuis le lien du MJ. Une partie masquée peut toujours être rejointe avec son lien direct et son mot de passe. Le MJ peut mettre une campagne en pause, la reprendre, l’arrêter ou la supprimer ; s’il ne reste aucune campagne active, l’application ouvre l’accueil de campagne au prochain démarrage. Les joueurs et le MJ peuvent modifier leur pseudo dans **Réglages du compte** ; une fois Supabase lié, le mot de passe se change aussi depuis ces réglages.
+Les campagnes visibles apparaissent dans la liste actualisée depuis le lien du MJ. Une partie masquée peut toujours être rejointe avec son lien direct et son mot de passe. Le MJ peut mettre une campagne en pause, la reprendre, l’arrêter ou la supprimer ; s’il ne reste aucune campagne active, l’application ouvre l’accueil de campagne au prochain démarrage. Les joueurs et le MJ peuvent modifier leur pseudo dans **Réglages du compte** ; une fois Supabase lié, le mot de passe se change aussi depuis ces réglages. Dans l’application, **Retour** revient à l’écran précédent, **Menu principal** permet de choisir à nouveau MJ ou Joueur, et **Déconnexion** ferme la session.
 
 Dans l’onglet **Game**, le MJ ajoute des images de carte ou de personnages et choisit celle qui est visible par les joueurs. Les joueurs voient uniquement l’image partagée. Chaque fiche (héros, compagnon, PNJ, monstre ou autre) peut aussi avoir son propre portrait/visuel, modifiable depuis la fiche. Les images sont hébergées par le PC du MJ. Le MJ et les joueurs disposent du lancer rapide de D20 et d’un petit résumé des derniers résultats, synchronisés en direct.
 
@@ -56,11 +56,11 @@ npm install
 npm run package:win
 ```
 
-Le fichier généré se trouve dans `release\Yuta-et-les-11-Setup-0.1.8.exe`.
+Le fichier généré se trouve dans `release\Yuta-et-les-11-Setup-0.1.9.exe`.
 
 ## Publier une mise à jour
 
-Le dépôt public [Xinoce/Yuta-et-les-11](https://github.com/Xinoce/Yuta-et-les-11) publie les installateurs sur GitHub Releases. Pour une nouvelle version, mettez à jour la version de `package.json`, poussez le code sur `main`, puis créez et poussez un tag correspondant, par exemple `v0.1.9`. GitHub Actions compile Windows et publie l’installateur ainsi que les métadonnées utilisées par l’auto‑mise‑à‑jour.
+Le dépôt public [Xinoce/Yuta-et-les-11](https://github.com/Xinoce/Yuta-et-les-11) publie les installateurs sur GitHub Releases. Pour une nouvelle version, mettez à jour la version de `package.json`, poussez le code sur `main`, puis créez et poussez un tag correspondant, par exemple `v0.1.10`. GitHub Actions compile Windows et publie l’installateur ainsi que les métadonnées utilisées par l’auto‑mise‑à‑jour.
 
 ## Socle de jeu
 
