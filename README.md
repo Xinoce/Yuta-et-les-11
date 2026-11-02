@@ -4,7 +4,7 @@ Application multijoueur en français pour jouer à **Yuta et les 11**. L’inter
 
 ## Installer et démarrer sous Windows
 
-Téléchargez puis lancez `release\Yuta-et-les-11-Setup-0.1.7.exe`. L’application s’ouvre dans sa propre fenêtre et n’exige pas que Node.js soit installé sur le PC de jeu. Un raccourci est ajouté au bureau et au menu Démarrer. Les sauvegardes sont conservées dans les données utilisateur Windows de l’application.
+Téléchargez puis lancez `release\Yuta-et-les-11-Setup-0.1.8.exe`. L’application s’ouvre dans sa propre fenêtre et n’exige pas que Node.js soit installé sur le PC de jeu. Un raccourci est ajouté au bureau et au menu Démarrer. Les sauvegardes sont conservées dans les données utilisateur Windows de l’application.
 
 À partir de la 0.1.7, l’application vérifie les mises à jour au démarrage, les télécharge en arrière-plan et propose de redémarrer pour les installer. Les utilisateurs de la 0.1.6 doivent installer la 0.1.7 manuellement une première fois.
 
@@ -12,7 +12,7 @@ Le MJ peut héberger en ligne depuis **Réglages → Héberger en ligne**. L’a
 
 Le MJ doit laisser l’application ouverte pendant la partie. Le lien est temporaire et change à chaque ouverture. Le tunnel est fourni par Cloudflare : il sert de relais public, donc ce n’est pas une connexion directe entre joueurs. Les Quick Tunnels ne demandent ni compte ni domaine, mais Cloudflare les destine aux usages temporaires et ne garantit pas leur disponibilité ; ils s’arrêtent avec le processus et limitent à 200 les requêtes simultanées en cours ([limites Quick Tunnel](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/)). Les WebSockets utilisés pour les lancers en direct sont pris en charge ([WebSockets Cloudflare](https://developers.cloudflare.com/network/websockets/)).
 
-L’ID seul ne peut pas retrouver un MJ partout sur Internet sans annuaire permanent. Pour ne pas déployer de service supplémentaire, le MJ partage le lien temporaire avec l’ID inclus ; l’ID permet ensuite de sélectionner la bonne partie depuis ce lien. Sur le réseau local, le serveur reste aussi accessible sur le port `3001` à `http://ADRESSE-LOCALE-DU-PC-MJ:3001`.
+L’ID seul ne peut pas retrouver un MJ partout sur Internet sans annuaire permanent. Pour ne pas déployer de service supplémentaire, le MJ partage le lien temporaire avec l’ID inclus ; l’ID permet ensuite de sélectionner la bonne partie depuis ce lien. Sur le réseau local, le serveur utilise normalement le port `3001`. Si ce port est déjà occupé, l’application Windows en choisit un autre automatiquement ; l’hébergement en ligne continue de fonctionner avec ce port.
 
 ## Première connexion
 
@@ -56,11 +56,11 @@ npm install
 npm run package:win
 ```
 
-Le fichier généré se trouve dans `release\Yuta-et-les-11-Setup-0.1.7.exe`.
+Le fichier généré se trouve dans `release\Yuta-et-les-11-Setup-0.1.8.exe`.
 
 ## Publier une mise à jour
 
-Le dépôt public [Xinoce/Yuta-et-les-11](https://github.com/Xinoce/Yuta-et-les-11) publie les installateurs sur GitHub Releases. Pour une nouvelle version, mettez à jour la version de `package.json`, poussez le code sur `main`, puis créez et poussez un tag correspondant, par exemple `v0.1.8`. GitHub Actions compile Windows et publie l’installateur ainsi que les métadonnées utilisées par l’auto‑mise‑à‑jour.
+Le dépôt public [Xinoce/Yuta-et-les-11](https://github.com/Xinoce/Yuta-et-les-11) publie les installateurs sur GitHub Releases. Pour une nouvelle version, mettez à jour la version de `package.json`, poussez le code sur `main`, puis créez et poussez un tag correspondant, par exemple `v0.1.9`. GitHub Actions compile Windows et publie l’installateur ainsi que les métadonnées utilisées par l’auto‑mise‑à‑jour.
 
 ## Socle de jeu
 
