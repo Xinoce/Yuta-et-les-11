@@ -4,7 +4,7 @@ Application multijoueur en français pour jouer à **Yuta et les 11**. L’inter
 
 ## Installer et démarrer sous Windows
 
-Téléchargez puis lancez `release\Yuta-et-les-11-Setup-0.1.12.exe`. L’application s’ouvre dans sa propre fenêtre et n’exige pas que Node.js soit installé sur le PC de jeu. Un raccourci est ajouté au bureau et au menu Démarrer. Les sauvegardes sont conservées dans les données utilisateur Windows de l’application.
+Téléchargez puis lancez `release\Yuta-et-les-11-Setup-0.1.13.exe`. L’application s’ouvre dans sa propre fenêtre et n’exige pas que Node.js soit installé sur le PC de jeu. Un raccourci est ajouté au bureau et au menu Démarrer. Les sauvegardes sont conservées dans les données utilisateur Windows de l’application.
 
 À partir de la 0.1.7, l’application vérifie les mises à jour au démarrage, les télécharge en arrière-plan et propose de redémarrer pour les installer. Les utilisateurs de la 0.1.6 doivent installer la 0.1.7 manuellement une première fois.
 
@@ -14,19 +14,14 @@ Le MJ doit laisser l’application ouverte pendant la partie. Le lien est tempor
 
 L’ID seul ne peut pas retrouver un MJ partout sur Internet sans annuaire permanent. Pour ne pas déployer de service supplémentaire, le MJ partage le lien temporaire avec l’ID inclus ; l’ID permet ensuite de sélectionner la bonne partie depuis ce lien. Sur le réseau local, le serveur utilise normalement le port `3001`. Si ce port est déjà occupé, l’application Windows en choisit un autre automatiquement ; l’hébergement en ligne continue de fonctionner avec ce port.
 
-## Première connexion
+## Créer un compte
 
-Un compte Maître du Jeu est précréé :
-
-- **Identifiant :** `Yuta`
-- **Mot de passe initial :** `admin123`
-
-Le compte impose de choisir un nouveau mot de passe à la première connexion. Le MJ peut ensuite modifier son pseudo et son mot de passe dans **Réglages**. Gardez les identifiants privés.
+Il n’y a plus de compte MJ partagé ou de mot de passe administrateur par défaut. À l’accueil, choisis **Maître du Jeu**, puis **Créer un compte MJ**. L’inscription utilise Supabase Auth et demande un pseudo, une adresse e-mail et un mot de passe. Si la confirmation e-mail est activée dans le projet Supabase, confirme l’adresse puis connecte-toi. Le MJ peut ensuite créer sa campagne. Les comptes MJ et les comptes joueurs utilisent le même service, avec des rôles distincts.
 
 ## Parcours dans l’application
 
 1. À l’ouverture, choisissez **Maître du Jeu** ou **Joueur**.
-2. Le MJ se connecte, définit son mot de passe, crée sa campagne et choisit son mot de passe de partie. Dans **Réglages**, il démarre le lien en ligne, qu’il transmet aux joueurs avec le mot de passe de partie par un autre moyen.
+2. Le MJ crée son compte Supabase ou se connecte, crée sa campagne et choisit son mot de passe de partie. Dans **Réglages**, il démarre le lien en ligne, qu’il transmet aux joueurs avec le mot de passe de partie par un autre moyen.
 3. Les joueurs peuvent créer leur compte avant d’avoir une partie. Dans **Amis**, chacun partage son ID `Y11-XXXXXXXXXX` pour s’ajouter. Un MJ peut envoyer une invitation à une campagne à ses amis ; le lien personnel permet de rejoindre sans transmettre le mot de passe de campagne. Les joueurs peuvent aussi ouvrir le lien public du MJ et utiliser le mot de passe comme avant. Un compte joueur peut rejoindre plusieurs PC MJ avec la même identité.
 4. Un joueur sans personnage est dirigé vers la création de sa fiche. S’il en a déjà, il choisit lequel jouer. Plusieurs personnages peuvent être rattachés à son compte.
 
@@ -34,7 +29,7 @@ Les campagnes visibles apparaissent dans la liste actualisée depuis le lien du 
 
 Dans l’onglet **Game**, le MJ ajoute des images de carte ou de personnages et choisit celle qui est visible par les joueurs. Les joueurs voient uniquement l’image partagée. Chaque fiche (héros, compagnon, PNJ, monstre ou autre) peut aussi avoir son propre portrait/visuel, modifiable depuis la fiche. Les images sont hébergées par le PC du MJ. Le MJ et les joueurs disposent du lancer rapide de D20 et d’un petit résumé des derniers résultats, synchronisés en direct.
 
-Supabase Auth gère les connexions sur le projet `https://cbwdbjwpexgxbewdpnzh.supabase.co`. Les codes joueurs, profils publics, relations d’amitié et invitations sont stockés dans les tables protégées par RLS du projet Supabase ; aucune adresse e-mail n’est affichée aux amis. Pour activer ces fonctions, exécutez `supabase/migrations/20261102000000_social_friends_invites.sql` dans le SQL Editor du nouveau projet Supabase. Les mots de passe de campagne, campagnes et fichiers ne sont pas envoyés à Supabase. La configuration du projet et sa clé **publishable** sont dans `src/supabase.ts` et dans les valeurs par défaut de `server/index.js` ; aucun secret Supabase n’est utilisé côté client ou serveur. Pour remplacer le projet, configurer `VITE_SUPABASE_URL` et `VITE_SUPABASE_PUBLISHABLE_KEY` au moment de compiler, ainsi que `SUPABASE_URL` et `SUPABASE_PUBLISHABLE_KEY` pour le serveur. Après le changement de projet, les profils locaux peuvent être reconnectés en se connectant au nouveau compte Supabase avec la même adresse e-mail confirmée. Les comptes, IDs d’amis et invitations de l’ancien projet ne sont pas transférés automatiquement. Le premier MJ conserve son profil `Yuta`, change le mot de passe temporaire, crée une première campagne, puis lie son compte depuis Réglages.
+Supabase Auth gère les connexions sur le projet `https://cbwdbjwpexgxbewdpnzh.supabase.co`. Les codes joueurs, profils publics, relations d’amitié et invitations sont stockés dans les tables protégées par RLS du projet Supabase ; aucune adresse e-mail n’est affichée aux amis. Pour activer ces fonctions, exécutez `supabase/migrations/20261102000000_social_friends_invites.sql` dans le SQL Editor du nouveau projet Supabase. Les mots de passe de campagne, campagnes et fichiers ne sont pas envoyés à Supabase. La configuration du projet et sa clé **publishable** sont dans `src/supabase.ts` et dans les valeurs par défaut de `server/index.js` ; aucun secret Supabase n’est utilisé côté client ou serveur. Pour remplacer le projet, configurer `VITE_SUPABASE_URL` et `VITE_SUPABASE_PUBLISHABLE_KEY` au moment de compiler, ainsi que `SUPABASE_URL` et `SUPABASE_PUBLISHABLE_KEY` pour le serveur. Après le changement de projet, les profils locaux peuvent être reconnectés en se connectant au nouveau compte Supabase avec la même adresse e-mail confirmée. Les comptes, IDs d’amis et invitations de l’ancien projet ne sont pas transférés automatiquement. Les profils MJ comme joueurs se créent depuis l’écran correspondant et utilisent Supabase Auth.
 
 Pour les inscriptions avec confirmation par e-mail, configurez un serveur SMTP personnalisé dans les paramètres Auth de Supabase : le service e-mail intégré aux projets hébergés n’envoie qu’aux membres de l’organisation et est limité à 2 e-mails par heure ([documentation SMTP Supabase](https://supabase.com/docs/guides/auth/auth-smtp)). La confirmation peut être désactivée pour un essai fermé, mais les adresses ne seront alors pas vérifiées.
 
@@ -56,7 +51,7 @@ npm install
 npm run package:win
 ```
 
-Le fichier généré se trouve dans `release\Yuta-et-les-11-Setup-0.1.12.exe`.
+Le fichier généré se trouve dans `release\Yuta-et-les-11-Setup-0.1.13.exe`.
 
 ## Publier une mise à jour
 
