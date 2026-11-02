@@ -175,10 +175,13 @@ async function matchesJoinPassword(campaign, password) {
   return expected.length === provided.length && crypto.timingSafeEqual(expected, provided)
 }
 
-if (db.prepare('SELECT COUNT(*) AS total FROM users').get().total === 0) {
-  const hash = bcrypt.hashSync('admin123', 12)
-  db.prepare(`INSERT INTO users(email,username,password_hash,display_name,role,must_change_password)
-    VALUES('yuta@local.invalid','Yuta',?,'Yuta','gm',1)`).run(hash)
+const untouchedBootstrapAdmin = db.prepare(`SELECT id FROM users
+  WHERE email='yuta@local.invalid' AND role='gm' AND auth_user_id IS NULL`).get()
+if (untouchedBootstrapAdmin && !db.prepare(`
+  SELECT 1 FROM campaigns WHERE owner_id=?
+  UNION ALL SELECT 1 FROM campaign_members WHERE user_id=? LIMIT 1
+`).get(untouchedBootstrapAdmin.id, untouchedBootstrapAdmin.id)) {
+  db.prepare('DELETE FROM users WHERE id=?').run(untouchedBootstrapAdmin.id)
 }
 
 app.get('/api/bootstrap', (_req, res) => res.json({ hasGame: db.prepare("SELECT 1 FROM campaigns WHERE is_open=1 AND status='active' LIMIT 1").get() !== undefined }))
@@ -197,13 +200,17 @@ app.get('/api/lobbies', (req, res) => {
 app.post('/api/auth/register', async (req, res) => {
   const displayName = cleanText(req.body?.displayName, 40)
   const username = cleanText(req.body?.username, 24)
+  const role = req.body?.role
   const { identity, unavailable } = await verifySupabaseIdentity(req.body?.accessToken)
   if (unavailable) return fail(res, 503, 'Supabase est momentanément inaccessible. Réessaie dans un instant.')
   if (!identity) return fail(res, 401, 'La session Supabase a expiré. Connecte-toi à nouveau.')
+  if (!['gm', 'player'].includes(role)) return fail(res, 400, 'Choisis le rôle Maître du Jeu ou joueur.')
+  if (identity.user_metadata?.role && identity.user_metadata.role !== role) return fail(res, 403, 'Le rôle choisi ne correspond pas à ce compte Supabase.')
   const email = cleanText(identity.email, 254).toLowerCase()
   const joinPassword = req.body?.joinPassword
   const hasCampaign = req.body?.campaignId !== undefined && req.body?.campaignId !== null && String(req.body.campaignId).trim() !== ''
   const campaignId = hasCampaign ? Number(req.body.campaignId) : null
+  if (role === 'gm' && hasCampaign) return fail(res, 400, 'Un compte MJ crée sa campagne depuis son espace de jeu.')
   if (!/^[a-zA-Z0-9._-]{2,24}$/.test(username)) return fail(res, 400, 'Le pseudo de connexion doit faire 2 à 24 caractères (lettres, chiffres, . _ -).')
   if (displayName.length < 2) return fail(res, 400, 'Le pseudo affiché doit contenir au moins 2 caractères.')
   if (req.body?.email && cleanText(req.body.email, 254).toLowerCase() !== email) return fail(res, 400, 'L’adresse de la session Supabase ne correspond pas au compte créé.')
@@ -219,7 +226,7 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const result = db.transaction(() => {
       const info = db.prepare(`INSERT INTO users(email,username,password_hash,display_name,role,auth_user_id)
-        VALUES(?,?,?,?, 'player',?)`).run(email, username, passwordHash, displayName, identity.id)
+        VALUES(?,?,?,?,?,?)`).run(email, username, passwordHash, displayName, role, identity.id)
       if (campaign) {
         db.prepare('INSERT INTO campaign_members(campaign_id,user_id) VALUES(?,?)').run(campaign.id, info.lastInsertRowid)
         db.prepare('UPDATE users SET active_campaign_id=? WHERE id=?').run(campaign.id, info.lastInsertRowid)
@@ -239,6 +246,11 @@ app.post('/api/auth/login', async (req, res) => {
     if (unavailable) return fail(res, 503, 'Supabase est momentanément inaccessible. Réessaie dans un instant.')
     if (!identity) return fail(res, 401, 'La session Supabase a expiré. Connecte-toi à nouveau.')
     user = db.prepare('SELECT * FROM users WHERE auth_user_id=?').get(identity.id)
+    const requestedRole = req.body?.role
+    const registeredRole = identity.user_metadata?.role
+    if (['gm', 'player'].includes(requestedRole) && ['gm', 'player'].includes(registeredRole) && requestedRole !== registeredRole) {
+      return fail(res, 403, requestedRole === 'gm' ? 'Ce compte est un compte joueur. Choisis le parcours Joueur.' : 'Ce compte est un compte MJ. Choisis le parcours MJ.')
+    }
     if (!user) {
       const localEmail = db.prepare('SELECT * FROM users WHERE lower(email)=lower(?)').get(identity.email)
       if (localEmail?.auth_user_id && localEmail.auth_user_id !== identity.id) {
@@ -252,7 +264,7 @@ app.post('/api/auth/login', async (req, res) => {
         }
       }
     }
-    if (!user && req.body?.role === 'player') {
+    if (!user && ['gm', 'player'].includes(requestedRole)) {
       const localEmail = db.prepare('SELECT * FROM users WHERE lower(email)=lower(?)').get(identity.email)
       if (localEmail) return fail(res, 409, 'Ce profil existe déjà sur ce PC mais son compte Supabase n’est pas lié. Connecte-toi avec ton ancien identifiant puis lie-le dans Réglages.')
       const metadata = identity.user_metadata || {}
@@ -261,7 +273,7 @@ app.post('/api/auth/login', async (req, res) => {
       const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12)
       try {
         const created = db.prepare(`INSERT INTO users(email,username,password_hash,display_name,role,auth_user_id)
-          VALUES(?,?,?,?,'player',?)`).run(identity.email.toLowerCase(), username, passwordHash, displayName, identity.id)
+          VALUES(?,?,?,?,?,?)`).run(identity.email.toLowerCase(), username, passwordHash, displayName, requestedRole, identity.id)
         user = db.prepare('SELECT * FROM users WHERE id=?').get(created.lastInsertRowid)
       } catch (error) {
         if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') return fail(res, 409, 'Un profil avec ces informations existe déjà sur ce PC.')
@@ -282,9 +294,8 @@ app.post('/api/auth/link-supabase', authAccount, async (req, res) => {
   const { identity, unavailable } = await verifySupabaseIdentity(req.body?.accessToken)
   if (unavailable) return fail(res, 503, 'Supabase est momentanément inaccessible. Réessaie dans un instant.')
   if (!identity) return fail(res, 401, 'La session Supabase a expiré. Connecte-toi à nouveau.')
-  if (req.user.auth_user_id && req.user.auth_user_id !== identity.id &&
-      (identity.email.toLowerCase() !== req.user.email.toLowerCase() || !hasVerifiedSupabaseEmail(identity))) {
-    return fail(res, 409, 'Pour reconnecter ce profil à un autre projet Supabase, utilise la même adresse e-mail et confirme-la dans Supabase.')
+  if (req.user.auth_user_id && req.user.auth_user_id !== identity.id && !hasVerifiedSupabaseEmail(identity)) {
+    return fail(res, 409, 'Confirme cette adresse e-mail dans Supabase avant de reconnecter ce profil.')
   }
   const linkedElsewhere = db.prepare('SELECT id FROM users WHERE auth_user_id=? AND id<>?').get(identity.id, req.user.id)
   if (linkedElsewhere) return fail(res, 409, 'Ce compte Supabase est déjà lié à un autre profil sur ce PC.')
