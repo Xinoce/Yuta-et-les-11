@@ -358,3 +358,63 @@
   .portrait-preview { width: 68px; height: 82px; }
 }
 
+.social-home-shell .side-nav { margin-top: 12px; }
+.social-refresh { flex: none; }
+.social-error { margin: -5px 0 14px; }
+.social-error .social-migration-link { display: inline-block; margin: 8px 0 0; color: #e0c783; font-size: 9px; text-decoration: underline; text-underline-offset: 2px; }
+.social-grid { display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: 14px; margin: 0 0 14px; }
+.social-add-panel,.social-inbox-panel,.social-games-panel,.social-friends-panel,.social-sent-panel { min-width: 0; padding: 19px; }
+.social-id-panel { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; padding: 17px 19px; background: radial-gradient(ellipse at 15% 50%,#c6a35d12,transparent 60%),#181914; }
+.social-id-panel h2 { margin: 6px 0; color: #e5d3a3; font: 500 23px 'Playfair Display',Georgia,serif; letter-spacing: .08em; }
+.social-id-panel p,.social-add-panel>.muted { margin: 0; color: #918e81; font-size: 9px; line-height: 1.6; }
+.social-id-panel .button-outline { flex: none; }
+.social-add-panel .panel-heading,.social-inbox-panel .panel-heading,.social-games-panel .panel-heading,.social-friends-panel .panel-heading,.social-sent-panel .panel-heading { align-items: center; }
+.social-add-panel>.muted { margin: 12px 0 14px; }
+.social-add-form { display: flex; align-items: flex-end; gap: 8px; }
+.social-add-form label { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 6px; color: #aaa698; font-size: 8px; }
+.social-add-form input { min-width: 0; height: 36px; padding: 8px 10px; border: 1px solid #3a392f; border-radius: 3px; outline: none; background: #11120f; color: #e4dece; font: 10px 'DM Sans',sans-serif; letter-spacing: .08em; }
+.social-add-form input:focus { border-color: #b3975e; }
+.social-add-form .button-primary { flex: none; min-height: 36px; padding: 8px 10px; font-size: 8px; }
+.social-list { margin-top: 11px; }
+.social-row,.social-game-invite { display: flex; min-width: 0; align-items: center; gap: 9px; border-top: 1px solid #2e2f28; padding: 9px 0; }
+.social-avatar { display: grid; width: 31px; height: 31px; flex: none; place-items: center; border: 1px solid #78664470; border-radius: 50%; background: radial-gradient(circle at 45% 35%,#c7a76a1c,transparent 70%),#1d1d17; color: #d6be86; font: 500 12px 'Playfair Display',Georgia,serif; }
+.social-row-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 4px; }
+.social-row-copy strong { overflow: hidden; color: #d9d3c4; font-size: 9px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.social-row-copy small { overflow: hidden; color: #838174; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.social-row .button-outline,.social-game-invite .button-primary { flex: none; padding: 7px 9px; font-size: 8px; }
+.social-row .button-quiet { flex: none; padding: 6px; }
+.social-empty { padding: 14px 4px 4px; color: #858277; font-size: 8px; line-height: 1.6; }
+.social-games-panel,.social-friends-panel,.social-sent-panel { margin-top: 14px; }
+.social-game-invite { gap: 11px; }
+.social-section-icon { display: grid; width: 36px; height: 36px; flex: none; place-items: center; border: 1px solid #806b444d; background: #b5944c0d; color: #ccb477; }
+.social-host-status { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding: 10px 12px; border: 1px solid #6a57354c; background: #b18b4210; color: #b9a77b; font-size: 8px; }
+.social-host-status>span { flex: 1; }
+.social-host-status.online { border-color: #71885d55; background: #71885d12; color: #9daf8d; }
+.social-host-status .text-link { flex: none; }
+.social-pending-label { flex: none; color: #b69a61; font-size: 7px; }
+.social-link-required { display: flex; max-width: 620px; align-items: flex-start; gap: 15px; padding: 20px; }
+.social-link-required h2 { margin: 2px 0 7px; color: #e0d5bc; font: 500 18px 'Playfair Display',Georgia,serif; }
+.social-link-required p { margin: 0 0 13px; color: #949184; font-size: 9px; line-height: 1.7; }
+.social-link-required .button-primary { padding: 9px 12px; font-size: 9px; }
+.social-link-required>.social-section-icon { width: 42px; height: 42px; }
+.lobby-account-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 13px; margin-top: 14px; padding-top: 13px; border-top: 1px solid #33332b; }
+.lobby-account-actions .button-outline { padding: 7px 10px; font-size: 8px; }
+.selected-game-id small { display: block; margin-top: 6px; color: #a9a18c; font-size: 8px; line-height: 1.5; }
+@media(max-width:850px) {
+  .social-grid { grid-template-columns: 1fr; }
+}
+@media(max-width:560px) {
+  .social-id-panel { align-items: flex-start; flex-direction: column; }
+  .social-id-panel h2 { font-size: 21px; }
+  .social-add-form { align-items: stretch; flex-direction: column; }
+  .social-add-form .button-primary { width: 100%; justify-content: center; }
+  .social-row,.social-game-invite { flex-wrap: wrap; }
+  .social-row-copy { flex-basis: calc(100% - 45px); }
+  .social-row .button-outline,.social-game-invite .button-primary { margin-left: 40px; }
+  .social-host-status { align-items: flex-start; flex-wrap: wrap; }
+  .social-host-status>span { min-width: calc(100% - 30px); }
+}
+@media(max-width:720px) {
+  .sidebar .side-nav { grid-template-columns: repeat(7,minmax(42px,1fr)); overflow-x: auto; }
+  .social-home-shell .side-nav { grid-template-columns: repeat(2,minmax(42px,1fr)); }
+}
