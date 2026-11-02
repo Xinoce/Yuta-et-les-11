@@ -51,6 +51,17 @@ const api = async <T,>(url: string, init: RequestInit = {}): Promise<T> => {
   if (!response.ok) throw new Error(data.error || 'Une erreur est survenue.')
   return data as T
 }
+const errorMessage = (cause: unknown, fallback: string) => {
+  if (cause instanceof Error) return cause.message
+  if (typeof cause === 'string' && cause) return cause
+  if (cause && typeof cause === 'object') {
+    const error = cause as { message?: unknown; details?: unknown }
+    const parts = [error.message, error.details].filter((part): part is string => typeof part === 'string' && Boolean(part.trim()))
+    if (parts.length) return parts.join(' — ')
+  }
+  return fallback
+}
+const errorCode = (cause: unknown) => cause && typeof cause === 'object' && 'code' in cause ? String((cause as { code: unknown }).code) : ''
 const dateLabel = (raw: string) => new Date(`${raw.replace(' ', 'T')}${raw.includes('Z') ? '' : 'Z'}`).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 const verdictLabel: Record<string, string> = { success: 'Réussite', failure: 'Échec', critical_success: 'Réussite critique', critical_failure: 'Échec critique' }
 const verdictClass: Record<string, string> = { success: 'success', failure: 'failure', critical_success: 'critical-success', critical_failure: 'critical-failure' }
@@ -817,10 +828,10 @@ function FriendsView({ user, campaign, onGoSettings, onToast }: {
         catch { setTunnel({ status: 'stopped', publicUrl: null, error: 'Vérifie l’hébergement dans Réglages.' }) }
       } else setTunnel({ status: 'stopped', publicUrl: null, error: null })
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : 'Impossible de charger les amis.'
-      const schemaMissing = /social_profiles|social_friendships|social_friend_requests|social_game_invitations|sync_my_social_profile|schema cache|does not exist|could not find function/i.test(message)
+      const message = errorMessage(cause, 'Impossible de charger les amis.')
+      const schemaMissing = ['PGRST202', 'PGRST205', '42P01'].includes(errorCode(cause)) || /social_profiles|social_friendships|social_friend_requests|social_game_invitations|sync_my_social_profile|schema cache|does not exist|could not find function/i.test(message)
       setError(schemaMissing
-        ? 'La fonction Amis doit d’abord être activée dans Supabase. Applique le fichier supabase/migrations/20261102000000_social_friends_invites.sql dans le SQL Editor du projet.'
+        ? 'Les tables Amis ne sont pas encore installées dans Supabase. Applique le script de migration dans le SQL Editor du projet avant de réessayer.'
         : message)
     } finally { setLoading(false) }
   }
@@ -845,7 +856,7 @@ function FriendsView({ user, campaign, onGoSettings, onToast }: {
       setPublicId('')
       await loadSocial()
       onToast(`Demande envoyée à ${target.display_name}.`)
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Impossible d’envoyer la demande.') }
+    } catch (cause) { setError(errorMessage(cause, 'Impossible d’envoyer la demande.')) }
     finally { setBusy(false) }
   }
 
@@ -856,7 +867,7 @@ function FriendsView({ user, campaign, onGoSettings, onToast }: {
       if (responseError) throw responseError
       await loadSocial()
       onToast(accept ? 'Ami ajouté.' : 'Demande refusée.')
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Impossible de répondre à cette demande.') }
+    } catch (cause) { setError(errorMessage(cause, 'Impossible de répondre à cette demande.')) }
     finally { setPendingAction('') }
   }
 
@@ -872,7 +883,7 @@ function FriendsView({ user, campaign, onGoSettings, onToast }: {
       if (inviteError) throw inviteError
       await loadSocial()
       onToast(`Invitation envoyée à ${friend.display_name}.`)
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Impossible d’envoyer cette invitation.') }
+    } catch (cause) { setError(errorMessage(cause, 'Impossible d’envoyer cette invitation.')) }
     finally { setPendingAction('') }
   }
 
@@ -890,7 +901,7 @@ function FriendsView({ user, campaign, onGoSettings, onToast }: {
       }
       await loadSocial()
       onToast('Invitation refusée.')
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Impossible de répondre à cette invitation.') }
+    } catch (cause) { setError(errorMessage(cause, 'Impossible de répondre à cette invitation.')) }
     finally { setPendingAction('') }
   }
 
@@ -907,19 +918,19 @@ function FriendsView({ user, campaign, onGoSettings, onToast }: {
   return <>
     <div className="welcome-row"><div><div className="eyebrow">COMPAGNONS DE ROUTE</div><h1>Amis et <em>invitations</em></h1><p className="muted">Retrouve tes joueurs, MJ et prochaines parties depuis ton ID personnel.</p></div><button className="button-outline social-refresh" onClick={() => { setLoading(true); void loadSocial() }} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''}/>{loading ? 'Actualisation…' : 'Actualiser'}</button></div>
     {!user.authLinked ? <section className="panel social-link-required"><div className="social-section-icon"><Shield size={20}/></div><div><h2>Compte en ligne requis</h2><p>Lie ou crée un compte Supabase dans Réglages pour recevoir un ID joueur et synchroniser tes amis sur les différents PC.</p><button className="button-primary" onClick={onGoSettings}>Ouvrir les réglages <ArrowUpRight size={14}/></button></div></section> : <>
-      {error && <div className="form-error social-error"><span>{error}</span>{error.includes('20261102000000_social_friends_invites.sql') && <a className="social-migration-link" href="https://raw.githubusercontent.com/Xinoce/Yuta-et-les-11/main/supabase/migrations/20261102000000_social_friends_invites.sql">Ouvrir le script SQL à appliquer</a>}</div>}
-      {profile && <section className="panel social-id-panel"><div><div className="eyebrow">TON ID JOUEUR</div><h2>{profile.public_id}</h2><p>Partage cet ID pour que tes amis puissent t’ajouter. Ton adresse e-mail reste privée.</p></div><button className="button-outline" onClick={() => void copyPublicId()}>{copied ? <Check size={15}/> : <Copy size={15}/>} {copied ? 'Copié' : 'Copier mon ID'}</button></section>}
-      <div className="social-grid"><section className="panel social-add-panel"><div className="panel-heading"><div><div className="eyebrow">NOUVEAUX COMPAGNONS</div><h2>Ajouter un ami</h2></div><span className="subtle-icon"><Users size={17}/></span></div><p className="muted">Saisis l’ID joueur reçu. Une demande sera envoyée et l’autre personne pourra l’accepter.</p><form className="social-add-form" onSubmit={addFriend}><label>ID joueur<input value={publicId} onChange={(event) => setPublicId(event.target.value)} placeholder="Y11-A1B2C3D4E5" minLength={12} maxLength={14} required/></label><button className="button-primary" disabled={busy || !publicId.trim()}><Send size={15}/>{busy ? 'Envoi…' : 'Envoyer la demande'}</button></form></section>
+      {error && <div className="form-error social-error"><span>{error}</span>{error.includes('Tables Amis ne sont pas encore installées') && <a className="social-migration-link" href="https://raw.githubusercontent.com/Xinoce/Yuta-et-les-11/main/supabase/migrations/20261102000000_social_friends_invites.sql">Ouvrir le script SQL à appliquer</a>}</div>}
+      {profile && <section className="panel social-id-panel"><div><div className="eyebrow">TON IDENTIFIANT DE COMPTE</div><h2>{profile.public_id}</h2><p>Partage cet ID pour que tes amis puissent t’ajouter. Ton adresse e-mail reste privée.</p></div><button className="button-outline" onClick={() => void copyPublicId()}>{copied ? <Check size={15}/> : <Copy size={15}/>} {copied ? 'Copié' : 'Copier mon ID'}</button></section>}
+      <div className="social-grid"><section className="panel social-add-panel"><div className="panel-heading"><div><div className="eyebrow">NOUVEAUX COMPAGNONS</div><h2>Ajouter un ami</h2></div><span className="subtle-icon"><Users size={17}/></span></div><p className="muted">Saisis l’ID joueur reçu. Une demande sera envoyée et l’autre personne pourra l’accepter.</p><form className="social-add-form" onSubmit={addFriend}><label>ID joueur<input value={publicId} onChange={(event) => setPublicId(event.target.value)} placeholder="pseudo#0427" minLength={7} maxLength={29} required/></label><button className="button-primary" disabled={busy || !publicId.trim()}><Send size={15}/>{busy ? 'Envoi…' : 'Envoyer la demande'}</button></form></section>
         <section className="panel social-inbox-panel"><div className="panel-heading"><div><div className="eyebrow">À TRAITER</div><h2>Demandes d’amitié</h2></div><span className="request-count">{incomingRequests.length} reçue{incomingRequests.length === 1 ? '' : 's'}</span></div><div className="social-list">{incomingRequests.length ? incomingRequests.map((request) => { const sender = profileFor(request.sender_id); return <article className="social-row" key={request.id}><div className="social-avatar">{sender?.display_name.slice(0,1).toUpperCase() || '?'}</div><div className="social-row-copy"><strong>{sender?.display_name || 'Joueur'}</strong><small>{sender?.public_id || 'Demande reçue'}</small></div><button className="button-outline" onClick={() => void respondFriendRequest(request, true)} disabled={pendingAction === request.id}><Check size={14}/> Accepter</button><button className="button-quiet danger-text" onClick={() => void respondFriendRequest(request, false)} disabled={pendingAction === request.id} aria-label="Refuser"><X size={15}/></button></article>}) : <div className="social-empty">Aucune demande en attente.</div>}</div></section>
       </div>
 
-      {incomingInvitations.length > 0 && <section className="panel social-games-panel"><div className="panel-heading"><div><div className="eyebrow">ON T’ATTEND À LA TABLE</div><h2>Invitations de partie</h2></div><span className="request-count">{incomingInvitations.length}</span></div><div className="social-list">{incomingInvitations.map((invite) => { const inviter = profileFor(invite.sender_id); const expired = invitationExpired(invite); return <article className="social-game-invite" key={invite.id}><div className="social-section-icon"><Gamepad2 size={19}/></div><div className="social-row-copy"><strong>{invite.campaign_name}</strong><small>MJ {inviter?.display_name || 'ami'} · {invite.game_id} · {expired ? 'Expirée' : invite.status === 'accepted' ? 'Acceptée' : 'Expire dans 7 jours'}</small></div><button className="button-primary" onClick={() => void answerGameInvitation(invite, true)} disabled={pendingAction === invite.id || expired}>Rejoindre <ArrowUpRight size={14}/></button>{invite.status === 'pending' && <button className="button-quiet danger-text" onClick={() => void answerGameInvitation(invite, false)} disabled={pendingAction === invite.id}>Refuser</button>}</article>})}</div></section>}
+      {incomingInvitations.length > 0 && <section className="panel social-games-panel"><div className="panel-heading"><div><div className="eyebrow">ON T’ATTEND À LA TABLE</div><h2>Invitations de partie</h2></div><span className="request-count">{incomingInvitations.length}</span></div><div className="social-list">{incomingInvitations.map((invite) => { const inviter = profileFor(invite.sender_id); const expired = invitationExpired(invite); return <article className="social-game-invite" key={invite.id}><div className="social-section-icon"><Gamepad2 size={19}/></div><div className="social-row-copy"><strong>{invite.campaign_name}</strong><small>MJ {inviter?.display_name || 'ami'} · {inviter?.public_id || 'ID indisponible'} · {invite.game_id} · {expired ? 'Expirée' : invite.status === 'accepted' ? 'Acceptée' : 'Expire dans 7 jours'}</small></div><button className="button-primary" onClick={() => void answerGameInvitation(invite, true)} disabled={pendingAction === invite.id || expired}>Rejoindre <ArrowUpRight size={14}/></button>{invite.status === 'pending' && <button className="button-quiet danger-text" onClick={() => void answerGameInvitation(invite, false)} disabled={pendingAction === invite.id}>Refuser</button>}</article>})}</div></section>}
 
       <section className="panel social-friends-panel"><div className="panel-heading"><div><div className="eyebrow">VOTRE CERCLE</div><h2>Amis</h2></div><span className="request-count">{friends.length}</span></div><div className="social-list">{friends.length ? friends.map((friend) => { const hasPendingInvite = outgoingInvitations.some((invite) => invite.recipient_id === friend.user_id && invite.status === 'pending' && !invitationExpired(invite)); return <article className="social-row" key={friend.user_id}><div className="social-avatar">{friend.display_name.slice(0,1).toUpperCase()}</div><div className="social-row-copy"><strong>{friend.display_name}</strong><small>{friend.public_id}</small></div>{user.role === 'gm' && campaign?.isOwner && <button className="button-outline" onClick={() => void sendGameInvitation(friend)} disabled={!tunnelReady || hasPendingInvite || pendingAction === friend.user_id} title={!tunnelReady ? 'Démarre le lien en ligne dans Réglages.' : undefined}><Send size={14}/>{hasPendingInvite ? 'Invitation envoyée' : 'Inviter à la partie'}</button>}</article>}) : <div className="social-empty">Aucun ami pour le moment. Ajoute un joueur avec son ID ci-dessus.</div>}</div></section>
 
       {outgoingRequests.length > 0 && <section className="panel social-sent-panel"><div className="panel-heading"><div><div className="eyebrow">EN ATTENTE</div><h2>Demandes envoyées</h2></div><span className="request-count">{outgoingRequests.length}</span></div><div className="social-list">{outgoingRequests.map((request) => { const target = profileFor(request.recipient_id); return <div className="social-row" key={request.id}><div className="social-avatar">{target?.display_name.slice(0,1).toUpperCase() || '?'}</div><div className="social-row-copy"><strong>{target?.display_name || 'Joueur'}</strong><small>{target?.public_id || 'Demande en attente'}</small></div><span className="social-pending-label">En attente</span></div>})}</div></section>}
 
-      {outgoingInvitations.length > 0 && <section className="panel social-sent-panel"><div className="panel-heading"><div><div className="eyebrow">INVITATIONS ENVOYÉES</div><h2>Suivi des invitations</h2></div><span className="request-count">{outgoingInvitations.length}</span></div><div className="social-list">{outgoingInvitations.slice(0, 8).map((invite) => { const recipient = profileFor(invite.recipient_id); return <div className="social-row" key={invite.id}><div className="social-avatar"><Gamepad2 size={15}/></div><div className="social-row-copy"><strong>{invite.campaign_name} · {recipient?.display_name || 'Ami'}</strong><small>{invite.game_id} · {invite.status === 'accepted' ? 'Acceptée' : invite.status === 'declined' ? 'Refusée' : invitationExpired(invite) ? 'Expirée' : 'En attente'}</small></div></div>})}</div></section>}
+      {outgoingInvitations.length > 0 && <section className="panel social-sent-panel"><div className="panel-heading"><div><div className="eyebrow">INVITATIONS ENVOYÉES</div><h2>Suivi des invitations</h2></div><span className="request-count">{outgoingInvitations.length}</span></div><div className="social-list">{outgoingInvitations.slice(0, 8).map((invite) => { const recipient = profileFor(invite.recipient_id); return <div className="social-row" key={invite.id}><div className="social-avatar"><Gamepad2 size={15}/></div><div className="social-row-copy"><strong>{invite.campaign_name} · {recipient?.display_name || 'Ami'}</strong><small>{recipient?.public_id || 'ID indisponible'} · {invite.game_id} · {invite.status === 'accepted' ? 'Acceptée' : invite.status === 'declined' ? 'Refusée' : invitationExpired(invite) ? 'Expirée' : 'En attente'}</small></div></div>})}</div></section>}
 
       {user.role === 'gm' && campaign?.isOwner && <div className={`social-host-status ${tunnelReady ? 'online' : ''}`}><Globe2 size={15}/><span>{tunnelReady ? 'Ta partie est en ligne : tu peux envoyer des invitations à tes amis.' : campaign.status !== 'active' ? 'Réactive la campagne avant d’envoyer des invitations.' : 'Pour inviter un ami, démarre d’abord l’hébergement en ligne dans Réglages.'}</span><button className="text-link" onClick={onGoSettings}>Réglages</button></div>}
     </>}
