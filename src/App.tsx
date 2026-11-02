@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { supabase } from './supabase'
 import {
@@ -16,6 +16,7 @@ type SocialFriendship = { user_low: string; user_high: string; created_at: strin
 type SocialFriendRequest = { id: string; sender_id: string; recipient_id: string; status: 'pending' | 'accepted' | 'declined'; created_at: string }
 type SocialGameInvitation = { id: string; sender_id: string; recipient_id: string; game_id: string; campaign_name: string; host_url: string; status: 'pending' | 'accepted' | 'declined' | 'cancelled'; created_at: string; expires_at: string }
 type TunnelStatus = { status: 'stopped' | 'starting' | 'online' | 'stopping' | 'error'; publicUrl: string | null; error: string | null }
+type UpdateStatus = { state: 'idle' | 'checking' | 'downloading' | 'current' | 'downloaded' | 'error' | 'unsupported'; version: string | null; percent: number; message: string; error: string | null; supported?: boolean }
 type Character = {
   id: number; campaign_id: number; owner_id: number; name: string; age: string; species: string; origin: string;
   portrait: string; description: string; stats: Record<string, number>; hp_current: number; hp_max: number;
@@ -29,6 +30,9 @@ type Roll = {
   created_at: string;
 }
 type GameImage = { id: number; name: string; contentType: string; byteSize: number; isShown: boolean; createdAt: string; url: string }
+type GameStroke = { id: string; color: string; width: number; points: { x: number; y: number }[] }
+type GameToken = { id: number; imageId: number; name: string; color: string; x: number; y: number; assignedUserIds: number[] }
+type GameOverlay = { strokes: GameStroke[]; tokens: GameToken[] }
 type RollRequest = {
   id: string; target_user_id: number | null; target_group: boolean; target_name: string | null; character_id: number | null;
   character_name: string | null; action: string; stat: string; difficulty: number; stat_bonus: number;
@@ -76,6 +80,7 @@ export default function App() {
   const [activeCharacter, setActiveCharacter] = useState<Character | null>(null)
   const [rolls, setRolls] = useState<Roll[]>([])
   const [gameImages, setGameImages] = useState<GameImage[]>([])
+  const [overlayRevision, setOverlayRevision] = useState(0)
   const [requests, setRequests] = useState<RollRequest[]>([])
   const [toast, setToast] = useState('')
   const [socket, setSocket] = useState<Socket | null>(null)
@@ -112,6 +117,7 @@ export default function App() {
     next.on('request:updated', (request: RollRequest) => setRequests((current) => [request, ...current.filter((v) => v.id !== request.id)]))
     next.on('character:updated', () => refresh().catch(() => undefined))
     next.on('game:images:updated', () => refresh().catch(() => undefined))
+    next.on('game:overlay:updated', () => setOverlayRevision((revision) => revision + 1))
     next.on('character:active', ({ userId, characterId }: { userId: number; characterId: number }) => {
       setMembers((current) => current.map((member) => member.id === userId ? { ...member, characterId } : member))
     })
@@ -189,7 +195,7 @@ export default function App() {
         {loadingData && <div className="loading-card"><div className="sigil"><Sparkles size={17}/></div><span>La partie se prépare…</span></div>}
         {!loadingData && view === 'selectCharacter' && characters.length === 0 && <CharacterView user={session.user} characters={characters} members={members} forceNew onSaved={(character) => { setCharacters([character]); setActiveCharacter(character); setCreatingCharacter(false); navigateTo('game') }} onToast={setToast} />}
         {!loadingData && view === 'selectCharacter' && characters.length > 0 && <CharacterPickerView characters={characters} activeCharacter={activeCharacter} onSelect={async (character) => { try { const chosen = await api<Character>('/api/active-character', { method: 'POST', body: JSON.stringify({ characterId: character.id }) }); setActiveCharacter(chosen); navigateTo('game') } catch (error) { setToast(error instanceof Error ? error.message : 'Choix impossible.') } }} onCreate={() => { setCreatingCharacter(true); navigateTo('character') }} />}
-        {!loadingData && view === 'game' && <GameView isGM={isGM} campaignStatus={session.campaign.status} character={ownCharacter} images={gameImages} rolls={rolls.slice(0, 6)} onRoll={(payload) => api<Roll>('/api/rolls', { method: 'POST', body: JSON.stringify(payload) }).then(() => setToast('Lancer ajouté au journal de jeu.')).catch((e) => setToast(e.message))} onUpload={async (payload) => { const image = await api<GameImage>('/api/game-images', { method: 'POST', body: JSON.stringify(payload) }); setGameImages((current) => [image, ...current]); setToast('Image ajoutée à la galerie de campagne.') }} onShow={async (image, isShown) => { const updated = await api<GameImage>(`/api/game-images/${image.id}`, { method: 'PATCH', body: JSON.stringify({ isShown }) }); setGameImages((current) => current.map((item) => item.id === updated.id ? updated : { ...item, isShown: isShown ? false : item.isShown })); setToast(isShown ? 'Image affichée aux joueurs.' : 'Image retirée de l’écran des joueurs.') }} onDelete={async (image) => { await api(`/api/game-images/${image.id}`, { method: 'DELETE' }); setGameImages((current) => current.filter((item) => item.id !== image.id)); setToast('Image supprimée de la galerie.') }} />}
+        {!loadingData && view === 'game' && <GameView isGM={isGM} userId={session.user.id} members={members} overlayRevision={overlayRevision} campaignStatus={session.campaign.status} character={ownCharacter} images={gameImages} rolls={rolls.slice(0, 6)} onRoll={(payload) => api<Roll>('/api/rolls', { method: 'POST', body: JSON.stringify(payload) }).then(() => setToast('Lancer ajouté au journal de jeu.')).catch((e) => setToast(e.message))} onUpload={async (payload) => { const image = await api<GameImage>('/api/game-images', { method: 'POST', body: JSON.stringify(payload) }); setGameImages((current) => [image, ...current]); setToast('Image ajoutée à la galerie de campagne.') }} onShow={async (image, isShown) => { const updated = await api<GameImage>(`/api/game-images/${image.id}`, { method: 'PATCH', body: JSON.stringify({ isShown }) }); setGameImages((current) => current.map((item) => item.id === updated.id ? updated : { ...item, isShown: isShown ? false : item.isShown })); setToast(isShown ? 'Image affichée aux joueurs.' : 'Image retirée de l’écran des joueurs.') }} onDelete={async (image) => { await api(`/api/game-images/${image.id}`, { method: 'DELETE' }); setGameImages((current) => current.filter((item) => item.id !== image.id)); setToast('Image supprimée de la galerie.') }} />}
         {!loadingData && view === 'table' && <TableView session={{ ...session, campaign: session.campaign! }} isGM={isGM} ownCharacter={ownCharacter} members={members} rolls={rolls} requests={requests} onRoll={(payload) => api<Roll>('/api/rolls', { method: 'POST', body: JSON.stringify(payload) }).then(() => setToast('Lancer ajouté au journal partagé.')).catch((e) => setToast(e.message))} onResolve={(id) => api(`/api/requests/${id}/resolve`, { method: 'POST' }).then(() => setToast('Test résolu et partagé avec la table.')).catch((e) => setToast(e.message))} onGo={navigateTo} />}
         {!loadingData && view === 'character' && <CharacterView user={session.user} characters={characters} members={members} activeCharacter={activeCharacter} forceNew={creatingCharacter} onCreateNew={() => setCreatingCharacter(true)} onCancelCreate={() => setCreatingCharacter(false)} onActiveCharacter={setActiveCharacter} onSaved={(character) => { setCharacters((current) => [character, ...current.filter((v) => v.id !== character.id)]); if (session.user.role === 'player') { setActiveCharacter(character); setCreatingCharacter(false); navigateTo('game') } else setCreatingCharacter(false) }} onToast={setToast} />}
         {view === 'requests' && <RequestsView isGM={isGM} campaignStatus={session.campaign.status} userId={session.user.id} members={members} characters={characters} requests={requests} onCreate={(payload) => api<RollRequest>('/api/requests', { method: 'POST', body: JSON.stringify(payload) }).then((request) => { setRequests((current) => [request, ...current.filter((v) => v.id !== request.id)]); setToast('La demande de test a été envoyée.') }).catch((e) => setToast(e.message))} onResolve={(id) => api(`/api/requests/${id}/resolve`, { method: 'POST' }).then(() => setToast('Test résolu et partagé avec la table.')).catch((e) => setToast(e.message))} onCancel={(id) => api<RollRequest>(`/api/requests/${id}/cancel`, { method: 'POST' }).then((request) => setRequests((current) => current.map((v) => v.id === id ? request : v))).catch((e) => setToast(e.message))} />}
@@ -347,6 +353,8 @@ function SettingsView({ user, campaign, forced = false, lastJoinPassword = '', o
   const [supabaseError, setSupabaseError] = useState('')
   const [supabaseInfo, setSupabaseInfo] = useState('')
   const [supabaseBusy, setSupabaseBusy] = useState(false)
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ state: 'unsupported', version: null, percent: 0, message: 'Les mises à jour sont disponibles dans l’application installée.', error: null })
+  const [updateBusy, setUpdateBusy] = useState(false)
   useEffect(() => {
     if (forced) return
     api<Campaign[]>('/api/campaigns').then(setCampaigns).catch(() => undefined)
@@ -367,6 +375,21 @@ function SettingsView({ user, campaign, forced = false, lastJoinPassword = '', o
     return () => { disposed = true; if (timer) window.clearTimeout(timer) }
   }, [campaign?.id, forced, tunnel.status, user.role])
   useEffect(() => { if (lastJoinPassword) setJoinPassword(lastJoinPassword) }, [lastJoinPassword])
+  useEffect(() => {
+    const updater = window.yutaUpdater
+    if (!updater) return
+    let active = true
+    const unsubscribe = updater.onStatus((status) => { if (active) setUpdateStatus(status) })
+    updater.getStatus().then((status) => { if (active) setUpdateStatus(status) }).catch(() => undefined)
+    return () => { active = false; unsubscribe() }
+  }, [])
+  async function checkForUpdates() {
+    if (!window.yutaUpdater) return
+    setUpdateBusy(true)
+    try { setUpdateStatus(await window.yutaUpdater.check()) }
+    catch { setUpdateStatus((current) => ({ ...current, state: 'error', message: 'La recherche de mise à jour a échoué.' })) }
+    finally { setUpdateBusy(false) }
+  }
   async function saveAccount(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError('')
     if (newPassword && newPassword !== confirmPassword) return setError('Les deux nouveaux mots de passe ne correspondent pas.')
@@ -482,15 +505,15 @@ function SettingsView({ user, campaign, forced = false, lastJoinPassword = '', o
     catch { onToast('Le presse-papiers n’est pas accessible sur cet appareil.') }
   }
   return <><div className="welcome-row"><div><div className="eyebrow">TON ESPACE</div><h1>{forced ? <>Un mot de passe <em>à toi.</em></> : <>Réglages du <em>compte</em></>}</h1><p className="muted">{forced ? 'Choisis un nouveau mot de passe pour sécuriser le compte MJ.' : 'Modifie ton pseudo ou ton mot de passe.'}</p></div></div><div className="settings-grid"><section className="panel settings-panel"><div className="panel-heading"><div><div className="eyebrow">PROFIL</div><h2>Informations de connexion</h2></div><span className="subtle-icon"><Settings size={17}/></span></div><form className="settings-form" onSubmit={saveAccount}><label>Pseudo de connexion<input value={username} onChange={(e) => setUsername(e.target.value)} minLength={2} maxLength={24} required/></label><label>Pseudo affiché<input value={displayName} onChange={(e) => setDisplayName(e.target.value)} minLength={2} maxLength={40} required/></label>{!user.authLinked && <label>Mot de passe actuel<input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder={forced ? 'Mot de passe temporaire' : 'Pour confirmer les changements'} required/></label>}<label>{forced ? 'Nouveau mot de passe' : user.authLinked ? 'Nouveau mot de passe Supabase (facultatif)' : 'Nouveau mot de passe (facultatif)'}<input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} minLength={newPassword || forced ? 10 : undefined} maxLength={200} placeholder="10 caractères minimum" required={forced}/></label>{(newPassword || forced) && <label>Confirmer le nouveau mot de passe<input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} minLength={10} required/></label>}{error && <div className="form-error">{error}</div>}<button className="button-primary" disabled={busy}><Check size={15}/>{busy ? 'Enregistrement…' : forced ? 'Sécuriser mon compte' : 'Enregistrer le profil'}<ArrowUpRight size={15}/></button></form></section>
-    {!forced && <section className="panel settings-panel account-link-panel"><div className="panel-heading"><div><div className="eyebrow">COMPTE EN LIGNE</div><h2>Connexion Supabase</h2></div><span className="subtle-icon"><Shield size={17}/></span></div>{user.authLinked ? <><div className="account-linked"><Check size={16}/><span><strong>Compte lié</strong><small>{user.email}</small></span></div><p className="muted">Ton adresse e-mail et ton mot de passe sont gérés par Supabase. Les campagnes, personnages et images restent sur le PC du MJ.</p></> : <><p className="muted">Lie ton compte pour te connecter avec une adresse e-mail sur tous les appareils. Le profil de jeu local sera conservé.</p><div className="account-mode"><button type="button" className={supabaseMode === 'existing' ? 'active' : ''} onClick={() => { setSupabaseMode('existing'); setSupabaseError(''); setSupabaseInfo('') }}>J’ai déjà un compte</button><button type="button" className={supabaseMode === 'create' ? 'active' : ''} onClick={() => { setSupabaseMode('create'); setSupabaseError(''); setSupabaseInfo('') }}>Créer un compte</button></div><form className="settings-form" onSubmit={linkSupabase}><label>Adresse e-mail<input type="email" value={supabaseEmail} onChange={(e) => setSupabaseEmail(e.target.value)} autoComplete="email" required/></label><label>Mot de passe Supabase<input type="password" value={supabasePassword} onChange={(e) => setSupabasePassword(e.target.value)} minLength={supabaseMode === 'create' ? 10 : 1} autoComplete={supabaseMode === 'create' ? 'new-password' : 'current-password'} required/></label>{supabaseError && <div className="form-error">{supabaseError}</div>}{supabaseInfo && <div className="account-link-info">{supabaseInfo}</div>}<button className="button-primary" disabled={supabaseBusy}><Shield size={15}/>{supabaseBusy ? 'Liaison…' : supabaseMode === 'create' ? 'Créer et lier le compte' : 'Lier le compte'}</button></form></>}</section>}
+    {!forced && <section className="panel settings-panel updater-panel"><div className="panel-heading"><div><div className="eyebrow">APPLICATION</div><h2>Mises à jour</h2></div><span className="subtle-icon"><RefreshCw size={17}/></span></div><p className="muted">Vérifie et télécharge une nouvelle version ici. L’installation s’effectue au prochain redémarrage, quand tu le décides.</p><div className={`update-status ${updateStatus.state}`}><i/>{updateStatus.message}</div>{updateStatus.state === 'downloading' && <div className="update-progress"><span style={{ width: `${Math.max(0, Math.min(100, updateStatus.percent))}%` }}/></div>}{updateStatus.state === 'error' && updateStatus.error && <small className="update-error-detail">{updateStatus.error}</small>}<div className="update-actions"><button type="button" className="button-outline" onClick={() => void checkForUpdates()} disabled={updateBusy || ['checking', 'downloading'].includes(updateStatus.state)}><RefreshCw size={14} className={updateBusy || updateStatus.state === 'checking' ? 'spin' : ''}/>{updateBusy || updateStatus.state === 'checking' ? 'Recherche…' : 'Rechercher une mise à jour'}</button>{updateStatus.state === 'downloaded' && <button type="button" className="button-primary" onClick={() => void window.yutaUpdater?.install()}><RefreshCw size={14}/>Redémarrer et installer</button>}</div></section>}
     {!forced && campaign && user.role === 'gm' && <>
       <section className="panel settings-panel"><div className="panel-heading"><div><div className="eyebrow">ESPACE MJ</div><h2>Campagne et session</h2></div><span className="subtle-icon"><ScrollText size={17}/></span></div><form className="settings-form" onSubmit={saveCampaign}><label>Nom de la campagne<input value={campaignName} onChange={(e) => setCampaignName(e.target.value)} maxLength={80} required/></label><label className="session-toggle"><input type="checkbox" checked={isOpen} onChange={(e) => setIsOpen(e.target.checked)}/><span><strong>Partie visible aux joueurs</strong><small>{isOpen ? 'Visible dans la liste depuis le lien du MJ.' : 'Masquée de la liste ; le lien direct reste valable.'}</small></span></label><div className="session-code"><span>ID DE PARTIE</span><strong>{campaign.gameId}</strong></div><label>Nouveau mot de passe de partie<input type="password" value={joinPassword} onChange={(e) => setJoinPassword(e.target.value)} minLength={joinPassword ? 8 : undefined} maxLength={200} placeholder={campaign.joinPasswordSet ? 'Laisser vide pour conserver' : '8 caractères minimum'} autoComplete="new-password"/></label>{campaign.legacyJoinPassword && <div className="legacy-password-note">Ancienne partie : son ancien code d’invitation fait office de mot de passe. Change-le ici pour le remplacer.</div>}{error && <div className="form-error">{error}</div>}<button className="button-primary" disabled={busy}><Check size={15}/>Enregistrer les réglages<ArrowUpRight size={15}/></button></form></section>
       <section className="panel settings-panel online-panel"><div className="panel-heading"><div><div className="eyebrow">ACCÈS À DISTANCE</div><h2>Héberger en ligne</h2></div><span className="subtle-icon"><Globe2 size={17}/></span></div><p className="online-description">Ouvre un lien sécurisé vers ton PC MJ. Les joueurs n’ont pas besoin de connaître ton adresse IP ni d’installer Hamachi.</p><div className={`tunnel-status ${tunnel.status}`}><i/>{tunnel.status === 'online' ? 'Partie joignable en ligne' : tunnel.status === 'starting' ? 'Création du lien en cours…' : tunnel.status === 'stopping' ? 'Fermeture du lien…' : tunnel.status === 'error' ? 'Le lien en ligne est indisponible' : 'Aucun lien en ligne actif'}</div>{tunnel.error && <div className="tunnel-error">{tunnel.error}</div>}{gameUrl && <><div className="online-url"><span>{gameUrl}</span><button className="button-outline" onClick={() => void copyText(gameUrl, 'Lien de partie')}><Copy size={14}/>Copier le lien</button></div><div className="online-password"><div><span>MOT DE PASSE DE PARTIE</span><strong>{lastJoinPassword || (campaign.legacyJoinPassword ?? 'Déjà défini — saisis-en un nouveau pour le modifier')}</strong></div>{lastJoinPassword && <button className="text-link" onClick={() => void copyText(lastJoinPassword, 'Mot de passe')}>Copier</button>}</div></>}{!gameUrl && <p className="online-note">Le lien est temporaire et change à chaque ouverture. Partage aussi le mot de passe de la partie, séparément.</p>}<button className={tunnel.status === 'online' || tunnel.status === 'starting' ? 'button-outline tunnel-button' : 'button-primary tunnel-button'} onClick={() => void changeTunnel()} disabled={tunnelBusy || tunnel.status === 'stopping'}><Globe2 size={15}/>{tunnelBusy ? 'Patiente…' : tunnel.status === 'online' || tunnel.status === 'starting' ? 'Fermer le lien en ligne' : 'Créer un lien en ligne'}</button><div className="tunnel-footnote"><Shield size={13}/> Le trafic passe par Cloudflare Tunnel. Le lien est public : seul le mot de passe autorise à rejoindre.</div></section>
     </>}{!forced && <section className="panel settings-panel campaign-manager-panel"><div className="panel-heading"><div><div className="eyebrow">VOS AVENTURES</div><h2>Campagnes</h2></div><span className="subtle-icon"><Compass size={17}/></span></div><div className="campaign-manager-list">{campaigns.map((item) => { const current = item.id === campaign?.id; const label = item.status === 'active' ? 'En cours' : item.status === 'paused' ? 'En pause' : 'Arrêtée'; return <article className={`campaign-manager-row ${item.status}`} key={item.id}><div className="campaign-manager-info"><strong>{item.name}</strong><span className={`campaign-state ${item.status}`}>{label}</span><small>{item.gameId}</small></div>{current ? <span className="campaign-current">Campagne ouverte</span> : <div className="campaign-actions"><button type="button" className="button-outline" onClick={() => void selectCampaign(item.id)} disabled={campaignBusy}>Ouvrir</button>{item.isOwner && <button type="button" className="button-quiet danger-text" onClick={() => void deleteCampaign(item)} disabled={campaignBusy} title="Supprimer cette campagne"><Trash2 size={14}/> Supprimer</button>}</div>}{current && item.isOwner && <div className="campaign-controls">{item.status === 'active' && <button type="button" className="button-outline" onClick={() => void changeCampaignStatus('paused')} disabled={campaignBusy}>Mettre en pause</button>}{item.status === 'paused' && <button type="button" className="button-primary" onClick={() => void changeCampaignStatus('active')} disabled={campaignBusy}>Reprendre</button>}{item.status !== 'stopped' && <button type="button" className="button-quiet danger-text" onClick={() => void changeCampaignStatus('stopped')} disabled={campaignBusy}>Arrêter</button>}{item.status === 'stopped' && <button type="button" className="button-primary" onClick={() => void changeCampaignStatus('active')} disabled={campaignBusy}>Réactiver</button>}<button type="button" className="button-quiet danger-text" onClick={() => void deleteCampaign(item)} disabled={campaignBusy} title="Supprimer cette campagne"><Trash2 size={14}/> Supprimer</button></div>}</article>})}{campaigns.length === 0 && <p className="muted campaign-empty">Aucune campagne trouvée.</p>}</div>{user.role === 'gm' && <form className="campaign-create-form" onSubmit={createCampaign}><div className="eyebrow">NOUVELLE AVENTURE</div><label>Nom de la campagne<input value={newCampaignName} onChange={(event) => setNewCampaignName(event.target.value)} minLength={2} maxLength={80} required placeholder="Ex. Les routes du Nord"/></label><label>Mot de passe de la partie<input type="password" value={newCampaignPassword} onChange={(event) => setNewCampaignPassword(event.target.value)} minLength={8} maxLength={200} required placeholder="8 caractères minimum" autoComplete="new-password"/></label>{campaignError && <div className="form-error">{campaignError}</div>}<button className="button-primary" disabled={campaignBusy}><Plus size={15}/>{campaignBusy ? 'Patiente…' : 'Créer une campagne'}<ArrowUpRight size={15}/></button></form>}</section>}</div></>
 }
 
-function GameView({ isGM, campaignStatus, character, images, rolls, onRoll, onUpload, onShow, onDelete }: {
-  isGM: boolean; campaignStatus: Campaign['status']; character: Character | null; images: GameImage[]; rolls: Roll[];
+function GameView({ isGM, userId, members, overlayRevision, campaignStatus, character, images, rolls, onRoll, onUpload, onShow, onDelete }: {
+  isGM: boolean; userId: number; members: Member[]; overlayRevision: number; campaignStatus: Campaign['status']; character: Character | null; images: GameImage[]; rolls: Roll[];
   onRoll: (payload: object) => void;
   onUpload: (payload: { name: string; contentType: string; data: string }) => Promise<void>;
   onShow: (image: GameImage, isShown: boolean) => Promise<void>;
@@ -498,7 +521,60 @@ function GameView({ isGM, campaignStatus, character, images, rolls, onRoll, onUp
 }) {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
+  const [overlay, setOverlay] = useState<GameOverlay>({ strokes: [], tokens: [] })
+  const [tool, setTool] = useState<'pointer' | 'pen' | 'place'>('pointer')
+  const [penColor, setPenColor] = useState('#f0c65e')
+  const [penWidth, setPenWidth] = useState(4)
+  const [draftStroke, setDraftStroke] = useState<GameStroke | null>(null)
+  const [tokenEditorOpen, setTokenEditorOpen] = useState(false)
+  const [tokenName, setTokenName] = useState('')
+  const [tokenColor, setTokenColor] = useState('#d6b76f')
+  const [tokenAssignees, setTokenAssignees] = useState<number[]>([])
+  const [editingTokenId, setEditingTokenId] = useState<number | null>(null)
+  const frameRef = useRef<HTMLDivElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const activeStroke = useRef<GameStroke | null>(null)
+  const draggedToken = useRef<number | null>(null)
+  const dragPosition = useRef<{ x: number; y: number } | null>(null)
   const shown = images.find((image) => image.isShown)
+  const playerMembers = members.filter((member) => member.role === 'player')
+
+  useEffect(() => {
+    let cancelled = false
+    if (!shown) { setOverlay({ strokes: [], tokens: [] }); return }
+    api<GameOverlay>(`/api/game-images/${shown.id}/overlay`).then((next) => { if (!cancelled) setOverlay(next) }).catch((cause) => { if (!cancelled) setError(cause instanceof Error ? cause.message : 'Impossible de charger les annotations.') })
+    return () => { cancelled = true }
+  }, [shown?.id, overlayRevision])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    const frame = frameRef.current
+    if (!canvas || !frame) return
+    const draw = () => {
+      const rect = frame.getBoundingClientRect()
+      const scale = window.devicePixelRatio || 1
+      canvas.width = Math.max(1, Math.round(rect.width * scale))
+      canvas.height = Math.max(1, Math.round(rect.height * scale))
+      const context = canvas.getContext('2d')
+      if (!context) return
+      context.setTransform(scale, 0, 0, scale, 0, 0)
+      context.lineCap = 'round'; context.lineJoin = 'round'
+      for (const stroke of [...overlay.strokes, ...(draftStroke ? [draftStroke] : [])]) {
+        if (!stroke.points.length) continue
+        context.strokeStyle = stroke.color; context.fillStyle = stroke.color; context.lineWidth = stroke.width
+        const first = stroke.points[0]
+        if (stroke.points.length === 1) { context.beginPath(); context.arc(first.x * rect.width, first.y * rect.height, Math.max(1, stroke.width / 2), 0, Math.PI * 2); context.fill(); continue }
+        context.beginPath(); context.moveTo(first.x * rect.width, first.y * rect.height)
+        for (const point of stroke.points.slice(1)) context.lineTo(point.x * rect.width, point.y * rect.height)
+        context.stroke()
+      }
+    }
+    draw()
+    const observer = new ResizeObserver(draw)
+    observer.observe(frame)
+    return () => observer.disconnect()
+  }, [overlay.strokes, draftStroke, shown?.id])
+
   async function upload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0]
     event.currentTarget.value = ''
@@ -528,13 +604,98 @@ function GameView({ isGM, campaignStatus, character, images, rolls, onRoll, onUp
     try { await onDelete(image) }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Impossible de supprimer cette image.') }
   }
+  function normalizedPointer(event: React.PointerEvent<HTMLCanvasElement>) {
+    const rect = frameRef.current?.getBoundingClientRect()
+    if (!rect?.width || !rect.height) return null
+    return { x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)), y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) }
+  }
+  async function placeToken(point: { x: number; y: number }) {
+    if (!shown) return
+    try {
+      const token = await api<GameToken>(`/api/game-images/${shown.id}/tokens`, { method: 'POST', body: JSON.stringify({ name: tokenName.trim() || 'Jeton', color: tokenColor, x: point.x, y: point.y, assignedUserIds: tokenAssignees }) })
+      setOverlay((current) => ({ ...current, tokens: [...current.tokens.filter((item) => item.id !== token.id), token] }))
+      setTokenEditorOpen(false); setTokenName(''); setTokenAssignees([]); setTool('pointer')
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Impossible de placer ce jeton.') }
+  }
+  function beginPointer(event: React.PointerEvent<HTMLCanvasElement>) {
+    if (!isGM || !shown) return
+    const point = normalizedPointer(event)
+    if (!point) return
+    if (tool === 'place') { void placeToken(point); return }
+    if (tool !== 'pen') return
+    event.currentTarget.setPointerCapture(event.pointerId)
+    activeStroke.current = { id: `draft-${Date.now()}`, color: penColor, width: penWidth, points: [point] }
+    setDraftStroke(activeStroke.current)
+  }
+  function movePointer(event: React.PointerEvent<HTMLCanvasElement>) {
+    if (!activeStroke.current) return
+    const point = normalizedPointer(event)
+    if (!point) return
+    activeStroke.current.points.push(point)
+    setDraftStroke({ ...activeStroke.current, points: [...activeStroke.current.points] })
+  }
+  async function endPointer() {
+    const stroke = activeStroke.current
+    activeStroke.current = null
+    setDraftStroke(null)
+    if (!stroke || !shown) return
+    try { await api(`/api/game-images/${shown.id}/strokes`, { method: 'POST', body: JSON.stringify({ color: stroke.color, width: stroke.width, points: stroke.points }) }) }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Impossible d’enregistrer le dessin.') }
+  }
+  async function clearDrawing() {
+    if (!shown || !window.confirm('Effacer tous les dessins de cette image ?')) return
+    try { await api(`/api/game-images/${shown.id}/strokes`, { method: 'DELETE' }); setOverlay((current) => ({ ...current, strokes: [] })) }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Impossible d’effacer les dessins.') }
+  }
+  function beginTokenDrag(event: React.PointerEvent<HTMLButtonElement>, token: GameToken) {
+    const canMove = isGM || token.assignedUserIds.includes(userId)
+    if (!canMove || campaignStatus !== 'active' || (isGM && tool !== 'pointer')) return
+    event.preventDefault(); event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId)
+    draggedToken.current = token.id
+    dragPosition.current = { x: token.x, y: token.y }
+  }
+  function moveToken(event: React.PointerEvent<HTMLElement>) {
+    if (!draggedToken.current) return
+    const rect = frameRef.current?.getBoundingClientRect()
+    if (!rect?.width || !rect.height) return
+    const position = { x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)), y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)) }
+    dragPosition.current = position
+    setOverlay((current) => ({ ...current, tokens: current.tokens.map((token) => token.id === draggedToken.current ? { ...token, ...position } : token) }))
+  }
+  async function endTokenDrag() {
+    const tokenId = draggedToken.current
+    const position = dragPosition.current
+    draggedToken.current = null; dragPosition.current = null
+    if (tokenId === null || !position) return
+    try { await api(`/api/game-tokens/${tokenId}`, { method: 'PATCH', body: JSON.stringify(position) }) }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Impossible de déplacer ce jeton.') }
+  }
+  async function saveToken() {
+    if (!editingTokenId) return
+    const current = overlay.tokens.find((token) => token.id === editingTokenId)
+    if (!current) return
+    try {
+      const updated = await api<GameToken>(`/api/game-tokens/${current.id}`, { method: 'PATCH', body: JSON.stringify({ x: current.x, y: current.y, name: tokenName.trim() || 'Jeton', color: tokenColor, assignedUserIds: tokenAssignees }) })
+      setOverlay((value) => ({ ...value, tokens: value.tokens.map((token) => token.id === updated.id ? updated : token) }))
+      setEditingTokenId(null); setTokenName(''); setTokenAssignees([]); setTokenEditorOpen(false)
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Impossible de modifier ce jeton.') }
+  }
+  async function deleteToken(token: GameToken) {
+    if (!window.confirm(`Supprimer le jeton « ${token.name} » ?`)) return
+    try { await api(`/api/game-tokens/${token.id}`, { method: 'DELETE' }); setOverlay((value) => ({ ...value, tokens: value.tokens.filter((item) => item.id !== token.id) })); if (editingTokenId === token.id) setEditingTokenId(null) }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Impossible de supprimer ce jeton.') }
+  }
+  function editToken(token: GameToken) {
+    setEditingTokenId(token.id); setTokenName(token.name); setTokenColor(token.color); setTokenAssignees(token.assignedUserIds); setTokenEditorOpen(true)
+  }
   return <>
     <div className="welcome-row game-welcome"><div><div className="eyebrow">ESPACE DE JEU EN DIRECT</div><h1>La scène <em>présente.</em></h1><p className="muted">Les images du MJ, vos lancers et les derniers résultats réunis ici.</p></div><span className={`session-tag ${campaignStatus}`}><i className={`status-dot ${campaignStatus === 'active' ? '' : 'offline'}`}/>{campaignStatus === 'active' ? 'SESSION ACTIVE' : campaignStatus === 'paused' ? 'EN PAUSE' : 'ARRÊTÉE'}</span></div>
     <div className="game-layout">
       <section className="panel game-stage-panel">
         <div className="panel-heading"><div><div className="eyebrow">CE QUE LA TABLE VOIT</div><h2>Écran de jeu</h2></div><span className="subtle-icon"><ImageIcon size={18}/></span></div>
-        {shown ? <figure className="game-projection"><img src={shown.url} alt={shown.name}/><figcaption>{shown.name}</figcaption></figure> : <div className="game-projection-empty"><div className="game-projection-icon"><ImageIcon size={24}/></div><strong>{isGM ? 'Choisis une image à partager' : 'Le MJ prépare la scène'}</strong><span>{isGM ? 'Les joueurs ne verront que l’image affichée.' : 'La carte ou l’illustration choisie par le MJ apparaîtra ici.'}</span></div>}
+        {shown ? <figure className="game-projection"><div className="game-scene-frame" ref={frameRef}><img src={shown.url} alt={shown.name}/><canvas ref={canvasRef} className={`game-annotation-canvas ${tool}`} style={{ pointerEvents: isGM && tool !== 'pointer' ? 'auto' : 'none' }} onPointerDown={beginPointer} onPointerMove={movePointer} onPointerUp={() => void endPointer()} onPointerCancel={() => void endPointer()} />{overlay.tokens.map((token) => { const movable = isGM || token.assignedUserIds.includes(userId); return <button key={token.id} type="button" className={`game-map-token ${movable && campaignStatus === 'active' ? 'movable' : ''} ${isGM && tool !== 'pointer' ? 'tool-locked' : ''}`} style={{ left: `${token.x * 100}%`, top: `${token.y * 100}%`, background: token.color, pointerEvents: !isGM || tool === 'pointer' ? 'auto' : 'none' }} title={`${token.name}${token.assignedUserIds.length ? ` · ${token.assignedUserIds.map((id) => members.find((member) => member.id === id)?.displayName || 'Joueur').join(', ')}` : ''}`} onPointerDown={(event) => beginTokenDrag(event, token)} onPointerMove={moveToken} onPointerUp={() => void endTokenDrag()} onPointerCancel={() => void endTokenDrag()}><span>{token.name.slice(0, 2).toLocaleUpperCase('fr-FR')}</span></button> })}</div><figcaption>{shown.name}</figcaption></figure> : <div className="game-projection-empty"><div className="game-projection-icon"><ImageIcon size={24}/></div><strong>{isGM ? 'Choisis une image à partager' : 'Le MJ prépare la scène'}</strong><span>{isGM ? 'Les joueurs ne verront que l’image affichée.' : 'La carte ou l’illustration choisie par le MJ apparaîtra ici.'}</span></div>}
         {isGM && <div className="game-image-tools"><label className={`button-primary game-upload-button ${uploading ? 'disabled' : ''}`}><Upload size={15}/>{uploading ? 'Ajout…' : 'Ajouter une image'}<input type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={(event) => void upload(event)} disabled={uploading}/></label><small>JPG, PNG, GIF ou WebP · 10 Mo max.</small></div>}
+        {isGM && shown && <div className="game-overlay-tools"><div className="game-tool-row"><button type="button" className={`button-outline ${tool === 'pointer' ? 'selected' : ''}`} onClick={() => setTool('pointer')}><Eye size={14}/>Déplacer</button><button type="button" className={`button-outline ${tool === 'pen' ? 'selected' : ''}`} onClick={() => setTool('pen')}><Feather size={14}/>Stylo</button><button type="button" className="button-outline" onClick={() => { setEditingTokenId(null); setTokenName(''); setTokenAssignees([]); setTokenEditorOpen((open) => !open) }}><Plus size={14}/>Ajouter un jeton</button><label className="game-color-control" title="Couleur du stylo"><input type="color" value={penColor} onChange={(event) => setPenColor(event.target.value)}/> Couleur</label><label className="game-width-control">Épaisseur <input type="range" min="1" max="12" value={penWidth} onChange={(event) => setPenWidth(Number(event.target.value))}/></label><button type="button" className="button-quiet danger-text" onClick={() => void clearDrawing()}>Effacer les dessins</button></div><div className="game-tool-hint">{tool === 'pen' ? 'Dessine directement sur l’image : les joueurs voient les traits en direct.' : tool === 'place' ? 'Clique sur l’image pour placer le nouveau jeton.' : 'Fais glisser un jeton pour le déplacer.'}</div>{overlay.tokens.length > 0 && <div className="game-token-manager"><strong>Jetons de la scène</strong>{overlay.tokens.map((token) => <div className="game-token-row" key={token.id}><span className="game-token-swatch" style={{ background: token.color }}/><button type="button" className="game-token-name" onClick={() => editToken(token)}>{token.name}<small>{token.assignedUserIds.length ? token.assignedUserIds.map((id) => members.find((member) => member.id === id)?.displayName || 'Joueur').join(', ') : 'Aucun joueur assigné'}</small></button><button className="icon-button" type="button" onClick={() => editToken(token)} aria-label="Modifier le jeton"><Settings size={14}/></button><button className="icon-button danger-text" type="button" onClick={() => void deleteToken(token)} aria-label="Supprimer le jeton"><Trash2 size={14}/></button></div>)}</div>}{tokenEditorOpen && <div className="game-token-editor"><div className="game-token-editor-heading"><strong>{editingTokenId ? 'Personnaliser le jeton' : 'Nouveau jeton'}</strong><button type="button" className="icon-button" onClick={() => { setTokenEditorOpen(false); setEditingTokenId(null) }} aria-label="Fermer"><X size={14}/></button></div><div className="game-token-form-row"><label>Nom du jeton<input value={tokenName} onChange={(event) => setTokenName(event.target.value)} maxLength={32} placeholder="Ex. Lysa, Garde, Loup…"/></label><label>Couleur<input type="color" value={tokenColor} onChange={(event) => setTokenColor(event.target.value)}/></label></div><div className="game-token-assignments"><span>Attribuer aux joueurs (plusieurs possibles)</span>{playerMembers.length ? playerMembers.map((member) => <label key={member.id}><input type="checkbox" checked={tokenAssignees.includes(member.id)} onChange={(event) => setTokenAssignees((ids) => event.target.checked ? [...ids, member.id] : ids.filter((id) => id !== member.id))}/>{member.displayName}</label>) : <small>Aucun joueur n’a encore rejoint la campagne.</small>}</div>{editingTokenId ? <button type="button" className="button-primary" onClick={() => void saveToken()}>Enregistrer le jeton</button> : <button type="button" className="button-primary" onClick={() => setTool('place')}><Plus size={14}/>Placer sur l’image</button>}</div>}</div>}
         {error && <div className="form-error game-error">{error}</div>}
         {isGM && <div className="game-image-library">{images.map((image) => <article className={`game-image-card ${image.isShown ? 'shown' : ''}`} key={image.id}><img src={image.url} alt=""/><div className="game-image-copy"><strong title={image.name}>{image.name}</strong><small>{Math.max(1, Math.round(image.byteSize / 1024))} Ko {image.isShown ? '· Visible' : ''}</small></div><button className="icon-button" type="button" onClick={() => void show(image, !image.isShown)} title={image.isShown ? 'Masquer aux joueurs' : 'Montrer aux joueurs'} aria-label={image.isShown ? 'Masquer aux joueurs' : 'Montrer aux joueurs'}>{image.isShown ? <EyeOff size={15}/> : <Eye size={15}/>}</button><button className="icon-button danger-text" type="button" onClick={() => void remove(image)} title="Supprimer l’image" aria-label="Supprimer l’image"><Trash2 size={15}/></button></article>)}{images.length === 0 && <p className="game-library-empty">La galerie est vide. Ajoute une carte, un portrait ou une illustration pour la partager.</p>}</div>}
       </section>

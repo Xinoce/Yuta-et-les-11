@@ -1,5 +1,5 @@
 const path = require('node:path')
-const { app, BrowserWindow, dialog } = require('electron')
+const { app, BrowserWindow, dialog, ipcMain } = require('electron')
 const { autoUpdater } = require('electron-updater')
 
 let gameServer
@@ -7,6 +7,7 @@ let gameDatabase
 let gameSockets
 let mainWindow
 let updateCheckStarted = false
+let updateStatus = { state: 'idle', version: null, percent: 0, message: 'Les mises à jour sont prêtes à être vérifiées.', error: null }
 const smokeTest = process.argv.includes('--smoke-test')
 const hasSingleInstanceLock = smokeTest || app.requestSingleInstanceLock()
 
@@ -79,6 +80,7 @@ async function startGame() {
     backgroundColor: '#11120f',
     title: 'Yuta et les 11',
     webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -86,35 +88,65 @@ async function startGame() {
   })
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   mainWindow.once('ready-to-show', () => mainWindow.show())
-  await mainWindow.loadURL(`http://127.0.0.1:${port}`)
   configureAutoUpdates(mainWindow)
+  await mainWindow.loadURL(`http://127.0.0.1:${port}`)
 }
 
 function configureAutoUpdates(window) {
-  if (!app.isPackaged || updateCheckStarted) return
+  if (updateCheckStarted) return
   updateCheckStarted = true
+  const publish = (next) => {
+    updateStatus = { ...updateStatus, ...next }
+    if (!window.isDestroyed()) window.webContents.send('updates:status', updateStatus)
+  }
+  ipcMain.removeHandler('updates:get-status')
+  ipcMain.removeHandler('updates:check')
+  ipcMain.removeHandler('updates:install')
+  ipcMain.handle('updates:get-status', () => ({ ...updateStatus, supported: app.isPackaged }))
+  ipcMain.handle('updates:check', async () => {
+    if (!app.isPackaged) return { ...updateStatus, state: 'unsupported', supported: false, message: 'Les mises à jour sont disponibles dans l’application installée.' }
+    if (['checking', 'downloading'].includes(updateStatus.state)) return { ...updateStatus, supported: true }
+    publish({ state: 'checking', version: null, percent: 0, error: null, message: 'Recherche des mises à jour…' })
+    try {
+      await autoUpdater.checkForUpdates()
+    } catch (error) {
+      publish({ state: 'error', error: error.message, message: 'La recherche de mise à jour a échoué.' })
+    }
+    return { ...updateStatus, supported: true }
+  })
+  ipcMain.handle('updates:install', () => {
+    if (updateStatus.state !== 'downloaded') return false
+    autoUpdater.quitAndInstall(false, true)
+    return true
+  })
+  if (!app.isPackaged) {
+    updateStatus = { state: 'unsupported', version: null, percent: 0, message: 'Les mises à jour sont disponibles dans l’application installée.', error: null }
+    return
+  }
   autoUpdater.logger = console
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = false
-  autoUpdater.on('error', (error) => console.warn('Vérification de mise à jour impossible :', error.message))
-  autoUpdater.on('update-available', (info) => console.info(`Mise à jour ${info.version} disponible.`))
-  autoUpdater.on('update-not-available', () => console.info('Yuta et les 11 est à jour.'))
-  autoUpdater.on('update-downloaded', async (info) => {
-    if (window.isDestroyed()) return
-    const choice = await dialog.showMessageBox(window, {
-      type: 'info',
-      title: 'Mise à jour prête',
-      message: `La version ${info.version} est téléchargée.`,
-      detail: 'Redémarre maintenant pour installer la mise à jour. Ta campagne et tes images resteront enregistrées.',
-      buttons: ['Redémarrer et installer', 'Plus tard'],
-      defaultId: 0,
-      cancelId: 1,
-      noLink: true,
-    })
-    if (choice.response === 0) autoUpdater.quitAndInstall(false, true)
+  autoUpdater.on('checking-for-update', () => publish({ state: 'checking', error: null, message: 'Recherche des mises à jour…' }))
+  autoUpdater.on('error', (error) => {
+    console.warn('Vérification de mise à jour impossible :', error.message)
+    publish({ state: 'error', error: error.message, message: 'La recherche ou le téléchargement a échoué.' })
   })
+  autoUpdater.on('update-available', (info) => {
+    console.info(`Mise à jour ${info.version} disponible.`)
+    publish({ state: 'downloading', version: info.version, percent: 0, error: null, message: `Téléchargement de la version ${info.version}…` })
+  })
+  autoUpdater.on('download-progress', (progress) => publish({ state: 'downloading', percent: Math.round(progress.percent), message: `Téléchargement de la mise à jour… ${Math.round(progress.percent)} %` }))
+  autoUpdater.on('update-not-available', () => {
+    console.info('Yuta et les 11 est à jour.')
+    publish({ state: 'current', version: app.getVersion(), percent: 0, error: null, message: 'Tu utilises déjà la dernière version.' })
+  })
+  autoUpdater.on('update-downloaded', (info) => publish({ state: 'downloaded', version: info.version, percent: 100, error: null, message: `La version ${info.version} est prête à être installée. Redémarre quand tu veux.` }))
   setTimeout(() => {
-    autoUpdater.checkForUpdates().catch((error) => console.warn('Vérification de mise à jour impossible :', error.message))
+    publish({ state: 'checking', message: 'Recherche automatique des mises à jour…' })
+    autoUpdater.checkForUpdates().catch((error) => {
+      console.warn('Vérification de mise à jour impossible :', error.message)
+      publish({ state: 'error', error: error.message, message: 'La recherche ou le téléchargement a échoué.' })
+    })
   }, 10000)
 }
 
@@ -135,4 +167,3 @@ app.on('before-quit', () => {
 })
 
 app.on('window-all-closed', () => app.quit())
-

@@ -29,6 +29,23 @@ CREATE TABLE IF NOT EXISTS game_images (
   byte_size INTEGER NOT NULL, is_shown INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS game_annotations (
+  image_id INTEGER PRIMARY KEY REFERENCES game_images(id) ON DELETE CASCADE,
+  campaign_id INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  strokes TEXT NOT NULL DEFAULT '[]',
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS game_tokens (
+  id INTEGER PRIMARY KEY,
+  campaign_id INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  image_id INTEGER NOT NULL REFERENCES game_images(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  color TEXT NOT NULL DEFAULT '#d6b76f',
+  x REAL NOT NULL DEFAULT 0.5,
+  y REAL NOT NULL DEFAULT 0.5,
+  assigned_user_ids TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS campaign_members (
   campaign_id INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -142,4 +159,3 @@ export const json = (value) => JSON.stringify(value)
 export const rowCharacter = (row) => row && ({
   ...row, stats: JSON.parse(row.stats), talents: JSON.parse(row.talents), equipment: JSON.parse(row.equipment),
 })
-

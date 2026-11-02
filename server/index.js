@@ -82,6 +82,10 @@ const imageInfo = (row) => ({
   id: row.id, name: row.original_name, contentType: row.content_type, byteSize: row.byte_size,
   isShown: Boolean(row.is_shown), createdAt: row.created_at, url: `/api/game-images/${row.id}/file`,
 })
+const gameTokenInfo = (row) => ({
+  id: row.id, imageId: row.image_id, name: row.name, color: row.color, x: row.x, y: row.y,
+  assignedUserIds: safeJson(row.assigned_user_ids, []),
+})
 function validImageSignature(type, bytes) {
   if (type === 'image/jpeg') return bytes.length > 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
   if (type === 'image/png') return bytes.length > 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
@@ -567,6 +571,90 @@ app.delete('/api/game-images/:id', authUser, requireGM, async (req, res) => {
   emitCampaign(req.campaign.id, 'game:images:updated', { campaignId: req.campaign.id })
   res.json({ ok: true })
 })
+app.get('/api/game-images/:id/overlay', authUser, (req, res) => {
+  const imageId = Number(req.params.id)
+  if (!integer(imageId, 1, Number.MAX_SAFE_INTEGER)) return fail(res, 404, 'Image introuvable.')
+  const image = db.prepare('SELECT id,is_shown FROM game_images WHERE id=? AND campaign_id=?').get(imageId, req.campaign.id)
+  if (!image || (!canManageCampaign(req.user, req.campaign) && !image.is_shown)) return fail(res, 404, 'Image introuvable.')
+  const annotation = db.prepare('SELECT strokes FROM game_annotations WHERE image_id=? AND campaign_id=?').get(imageId, req.campaign.id)
+  const tokens = db.prepare('SELECT * FROM game_tokens WHERE image_id=? AND campaign_id=? ORDER BY id').all(imageId, req.campaign.id)
+  res.json({ strokes: safeJson(annotation?.strokes, []), tokens: tokens.map(gameTokenInfo) })
+})
+app.post('/api/game-images/:id/strokes', authUser, requireGM, (req, res) => {
+  const imageId = Number(req.params.id)
+  const { color, width, points } = req.body || {}
+  if (!integer(imageId, 1, Number.MAX_SAFE_INTEGER) || !db.prepare('SELECT 1 FROM game_images WHERE id=? AND campaign_id=?').get(imageId, req.campaign.id)) return fail(res, 404, 'Image introuvable.')
+  if (typeof color !== 'string' || !/^#[\da-f]{6}$/i.test(color) || !Number.isFinite(width) || width < 1 || width > 20 || !Array.isArray(points) || points.length < 1 || points.length > 1500 || points.some((point) => !point || !Number.isFinite(point.x) || !Number.isFinite(point.y) || point.x < 0 || point.x > 1 || point.y < 0 || point.y > 1)) return fail(res, 400, 'Le tracé est invalide.')
+  const current = db.prepare('SELECT strokes FROM game_annotations WHERE image_id=? AND campaign_id=?').get(imageId, req.campaign.id)
+  const strokes = safeJson(current?.strokes, [])
+  strokes.push({ id: crypto.randomUUID(), color, width, points })
+  if (strokes.length > 2000) strokes.splice(0, strokes.length - 2000)
+  let serializedStrokes = json(strokes)
+  while (strokes.length > 1 && serializedStrokes.length > 2_000_000) {
+    strokes.shift()
+    serializedStrokes = json(strokes)
+  }
+  db.prepare(`INSERT INTO game_annotations(image_id,campaign_id,strokes) VALUES(?,?,?)
+    ON CONFLICT(image_id) DO UPDATE SET strokes=excluded.strokes,updated_at=CURRENT_TIMESTAMP`).run(imageId, req.campaign.id, serializedStrokes)
+  emitCampaign(req.campaign.id, 'game:overlay:updated', { campaignId: req.campaign.id, imageId })
+  res.status(201).json({ ok: true })
+})
+app.delete('/api/game-images/:id/strokes', authUser, requireGM, (req, res) => {
+  const imageId = Number(req.params.id)
+  if (!integer(imageId, 1, Number.MAX_SAFE_INTEGER) || !db.prepare('SELECT 1 FROM game_images WHERE id=? AND campaign_id=?').get(imageId, req.campaign.id)) return fail(res, 404, 'Image introuvable.')
+  db.prepare(`INSERT INTO game_annotations(image_id,campaign_id,strokes) VALUES(?,?,'[]')
+    ON CONFLICT(image_id) DO UPDATE SET strokes='[]',updated_at=CURRENT_TIMESTAMP`).run(imageId, req.campaign.id)
+  emitCampaign(req.campaign.id, 'game:overlay:updated', { campaignId: req.campaign.id, imageId })
+  res.json({ ok: true })
+})
+app.post('/api/game-images/:id/tokens', authUser, requireGM, (req, res) => {
+  const imageId = Number(req.params.id)
+  const name = cleanText(req.body?.name, 32)
+  const color = req.body?.color
+  const x = req.body?.x
+  const y = req.body?.y
+  const assignedUserIds = req.body?.assignedUserIds
+  if (!integer(imageId, 1, Number.MAX_SAFE_INTEGER) || !db.prepare('SELECT 1 FROM game_images WHERE id=? AND campaign_id=?').get(imageId, req.campaign.id)) return fail(res, 404, 'Image introuvable.')
+  if (!name || typeof color !== 'string' || !/^#[\da-f]{6}$/i.test(color) || !Number.isFinite(x) || x < 0 || x > 1 || !Number.isFinite(y) || y < 0 || y > 1 || !Array.isArray(assignedUserIds) || assignedUserIds.length > 20 || assignedUserIds.some((id) => !integer(id, 1, Number.MAX_SAFE_INTEGER) || !member(req.campaign.id, id))) return fail(res, 400, 'Les réglages du jeton sont invalides.')
+  const ids = [...new Set(assignedUserIds)]
+  if (ids.some((id) => db.prepare("SELECT role FROM users WHERE id=?").get(id)?.role !== 'player')) return fail(res, 400, 'Un jeton ne peut être attribué qu’à des joueurs de cette campagne.')
+  const result = db.prepare('INSERT INTO game_tokens(campaign_id,image_id,name,color,x,y,assigned_user_ids) VALUES(?,?,?,?,?,?,?)').run(req.campaign.id, imageId, name, color, x, y, json(ids))
+  const token = gameTokenInfo(db.prepare('SELECT * FROM game_tokens WHERE id=?').get(result.lastInsertRowid))
+  emitCampaign(req.campaign.id, 'game:overlay:updated', { campaignId: req.campaign.id, imageId })
+  res.status(201).json(token)
+})
+app.patch('/api/game-tokens/:id', authUser, (req, res) => {
+  const tokenId = Number(req.params.id)
+  if (!integer(tokenId, 1, Number.MAX_SAFE_INTEGER)) return fail(res, 404, 'Jeton introuvable.')
+  const token = db.prepare('SELECT * FROM game_tokens WHERE id=? AND campaign_id=?').get(tokenId, req.campaign.id)
+  if (!token) return fail(res, 404, 'Jeton introuvable.')
+  const isGM = canManageCampaign(req.user, req.campaign)
+  const assignments = safeJson(token.assigned_user_ids, [])
+  if (!isGM && !assignments.includes(req.user.id)) return fail(res, 403, 'Ce jeton ne t’a pas été confié.')
+  if (!isGM && req.campaign.status !== 'active') return fail(res, 409, 'Les jetons sont verrouillés pendant la pause ou après l’arrêt de la campagne.')
+  const { x, y } = req.body || {}
+  if (!Number.isFinite(x) || x < 0 || x > 1 || !Number.isFinite(y) || y < 0 || y > 1) return fail(res, 400, 'La position du jeton est invalide.')
+  if (!isGM && Object.keys(req.body || {}).some((key) => !['x', 'y'].includes(key))) return fail(res, 403, 'Tu peux uniquement déplacer le jeton qui t’a été confié.')
+  if (isGM) {
+    const name = req.body?.name === undefined ? token.name : cleanText(req.body.name, 32)
+    const color = req.body?.color === undefined ? token.color : req.body.color
+    const userIds = req.body?.assignedUserIds === undefined ? assignments : req.body.assignedUserIds
+    if (!name || typeof color !== 'string' || !/^#[\da-f]{6}$/i.test(color) || !Array.isArray(userIds) || userIds.length > 20 || userIds.some((id) => !integer(id, 1, Number.MAX_SAFE_INTEGER) || !member(req.campaign.id, id))) return fail(res, 400, 'Les réglages du jeton sont invalides.')
+    const ids = [...new Set(userIds)]
+    if (ids.some((id) => db.prepare("SELECT role FROM users WHERE id=?").get(id)?.role !== 'player')) return fail(res, 400, 'Un jeton ne peut être attribué qu’à des joueurs de cette campagne.')
+    db.prepare('UPDATE game_tokens SET name=?,color=?,x=?,y=?,assigned_user_ids=? WHERE id=?').run(name, color, x, y, json(ids), tokenId)
+  } else db.prepare('UPDATE game_tokens SET x=?,y=? WHERE id=?').run(x, y, tokenId)
+  emitCampaign(req.campaign.id, 'game:overlay:updated', { campaignId: req.campaign.id, imageId: token.image_id })
+  res.json(gameTokenInfo(db.prepare('SELECT * FROM game_tokens WHERE id=?').get(tokenId)))
+})
+app.delete('/api/game-tokens/:id', authUser, requireGM, (req, res) => {
+  const tokenId = Number(req.params.id)
+  const token = integer(tokenId, 1, Number.MAX_SAFE_INTEGER) && db.prepare('SELECT * FROM game_tokens WHERE id=? AND campaign_id=?').get(tokenId, req.campaign.id)
+  if (!token) return fail(res, 404, 'Jeton introuvable.')
+  db.prepare('DELETE FROM game_tokens WHERE id=?').run(tokenId)
+  emitCampaign(req.campaign.id, 'game:overlay:updated', { campaignId: req.campaign.id, imageId: token.image_id })
+  res.json({ ok: true })
+})
 server.on('close', stopPublicTunnel)
 app.get('/api/members', authUser, (req, res) => {
   const rows = db.prepare(`SELECT u.id,u.display_name,u.role,ch.id AS character_id,ch.name AS character_name
@@ -822,4 +910,3 @@ export function startServer({ port = Number(process.env.PORT || 3001), host = '1
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) startServer()
 
 export { app, db, io, server }
-

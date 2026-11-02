@@ -4,9 +4,9 @@ Ce fichier sert de passation pour reprendre le développement de l’application
 
 ## État au moment de la passation
 
-- Version actuelle : **0.1.15**.
+- Version actuelle : **0.1.16**.
 - Application Windows Electron, interface React/TypeScript, serveur Express, Socket.IO et base SQLite.
-- L’installateur généré est `release/Yuta-et-les-11-Setup-0.1.15.exe`. Le dossier `release/` est ignoré par Git ; les installateurs sont publiés par GitHub Actions dans Releases.
+- L’installateur généré est `release/Yuta-et-les-11-Setup-0.1.16.exe`. Le dossier `release/` est ignoré par Git ; les installateurs sont publiés par GitHub Actions dans Releases.
 - Supabase Auth gère les comptes globaux. Chaque serveur MJ conserve les profils de campagne et les données de jeu localement ; `users.auth_user_id` relie un compte Supabase à son profil SQLite sur cet hôte.
 - La version 0.1.6 ajoute la liaison du compte Supabase, la connexion/inscription e-mail et les portraits de personnages hébergés dans `character-images/` sur le PC MJ.
 - La version 0.1.7 ajoute l’auto‑mise‑à‑jour via les GitHub Releases publiques du dépôt `Xinoce/Yuta-et-les-11`. Au démarrage, `desktop/main.cjs` vérifie les nouvelles versions, les télécharge puis demande confirmation avant de redémarrer.
@@ -17,6 +17,7 @@ Ce fichier sert de passation pour reprendre le développement de l’application
 - La version 0.1.13 ajoute l’inscription Supabase des comptes MJ, retire le compte administrateur précréé et adapte l’échelle globale de l’interface aux écrans 2K et plus.
 - La version 0.1.14 crée les identifiants d’amis `pseudo#0000` dans Supabase, convertit les anciens IDs sociaux à l’application de la migration et affiche les erreurs PostgREST réelles au lieu d’un message générique.
 - La version 0.1.15 fait écouter le serveur local uniquement sur `127.0.0.1` pour éviter l’exposition réseau locale et les demandes entrantes du pare-feu Windows. Le contrôle de démarrage vérifie la disponibilité locale et l’enregistrement du tunnel Cloudflare, sans faire rebondir le test par l’URL publique depuis le PC du MJ.
+- La version 0.1.16 ajoute la recherche manuelle et l’installation différée des mises à jour depuis Réglages, les dessins du MJ sur l’image partagée et les jetons personnalisables, déplaçables et attribuables à un ou plusieurs joueurs.
 - Cette copie de travail n’a pas de dossier Git (`.git` absent). Le dépôt distant du projet est [Xinoce/Yuta-et-les-11](https://github.com/Xinoce/Yuta-et-les-11) ; récupérer son historique avec `git clone` pour une nouvelle copie de développement.
 
 ## Installer le projet sur un autre PC
@@ -52,7 +53,7 @@ Le fichier est produit dans `release/`. Le nom inclut automatiquement la version
 - `server/db.js` : création de la base et migrations SQLite. Ajouter les changements de schéma ici afin qu’ils s’appliquent aussi aux anciennes bases.
 - `server/domain.js` et `server/auth.js` : règles métier et authentification.
 - `server/online.js` : démarrage, état et arrêt du tunnel Cloudflare temporaire.
-- `desktop/main.cjs` : lance le serveur local, ouvre la fenêtre Electron et gère les mises à jour.
+- `desktop/main.cjs` et `desktop/preload.cjs` : lancent le serveur local, ouvrent la fenêtre Electron et exposent le contrôle sécurisé des mises à jour à l’interface.
 - `tools/download-cloudflared.mjs` : télécharge cloudflared 2026.10.4 depuis la release officielle et vérifie son SHA-256. Le binaire local `tools/cloudflared.exe` est ignoré par Git et intégré à l’installateur par `npm run package:win`.
 - `.github/workflows/release-windows.yml` : sur un tag `v*`, construit l’installateur Windows et publie l’EXE, le blockmap et `latest.yml` sur GitHub Releases.
 - `tests/` : tests Node existants ; `npm test` les exécute.
@@ -70,7 +71,8 @@ Le fichier est produit dans `release/`. Le nom inclut automatiquement la version
 - Connexion globale via Supabase Auth. La base MJ garde une ligne locale par compte et la relie au `auth_user_id` Supabase. Un compte MJ comme joueur peut être créé avec son adresse e-mail ; aucune clé secrète Supabase n’est requise.
 - Auto‑mise‑à‑jour Electron via `electron-updater` et le provider GitHub. Le dépôt et les Releases doivent rester publics pour que les clients téléchargent les mises à jour sans jeton embarqué. `verifyUpdateCodeSignature` est désactivé faute de certificat de signature Windows ; les paquets restent vérifiés par le SHA‑512 des métadonnées reçues en HTTPS. Si une signature Windows est ajoutée, réactiver la vérification du certificat dans `package.json`.
 - Lancers partagés en direct et requêtes de tests du MJ.
-- Onglet **Game** : le MJ importe des images raster JPG, PNG, GIF ou WebP (10 Mo maximum), choisit l’image diffusée et peut la masquer ou la supprimer. Les joueurs ne voient que l’image sélectionnée. Le MJ et les joueurs peuvent lancer un D20 ou des dés personnalisés et consulter les derniers lancers.
+- Onglet **Game** : le MJ importe des images raster JPG, PNG, GIF ou WebP (10 Mo maximum), choisit l’image diffusée et peut la masquer ou la supprimer. Il peut dessiner sur l’image, puis créer des jetons nommés et colorés, les attribuer à plusieurs joueurs et déplacer tous les jetons. Chaque joueur peut déplacer seulement les jetons qui lui sont attribués. Dessins et positions sont sauvegardés localement dans SQLite et synchronisés dans Socket.IO. Le MJ et les joueurs peuvent lancer un D20 ou des dés personnalisés et consulter les derniers lancers.
+- Réglages inclut un contrôle manuel de mise à jour et la progression du téléchargement. La mise à jour se télécharge en arrière-plan et ne s’installe qu’après le redémarrage demandé par l’utilisateur.
 - Les images Game sont conservées dans `game-images/`, et les portraits dans `character-images/` du répertoire de données. Les deux dossiers sont supprimés avec la campagne.
 - L’hébergement en ligne utilise un **Cloudflare Quick Tunnel temporaire**. Il n’y a pas d’annuaire central ni de serveur permanent : le MJ doit laisser l’application ouverte et transmettre aux joueurs le lien temporaire et le mot de passe de la partie.
 - Au démarrage Electron, le serveur tente le port `3001`, puis prend automatiquement un port libre si celui-ci est occupé. Le tunnel reçoit le port réellement ouvert via `server.address()`. L’application empêche aussi plusieurs fenêtres Yuta simultanées : un second lancement ramène la fenêtre existante au premier plan.
@@ -99,5 +101,5 @@ Il n’y a plus de compte MJ précréé. Au démarrage, le serveur supprime l’
 
 Pour publier la version suivante, augmenter la version racine dans `package.json` et `package-lock.json`, pousser les changements sur `main`, puis créer/pousser le tag `v<version>` (par ex. `v0.1.12`). GitHub Actions lance `npm run package:win -- --publish always`; il n’y a pas besoin d’un secret GitHub ajouté à la configuration, le workflow utilise son `GITHUB_TOKEN` limité au dépôt. La version 0.1.6 ne contient pas l’updater : les utilisateurs doivent passer manuellement à la 0.1.7.
 
-Pour reprendre avec Codex sur un autre PC, ouvrir le dossier du projet et lui demander de lire `README_CODEX.md` ainsi que `README.md` avant de modifier le code. La version actuelle est 0.1.15 ; préserver les dossiers de sauvegarde et les fichiers `tools/` lors d’un transfert.
+Pour reprendre avec Codex sur un autre PC, ouvrir le dossier du projet et lui demander de lire `README_CODEX.md` ainsi que `README.md` avant de modifier le code. La version actuelle est 0.1.16 ; préserver les dossiers de sauvegarde et les fichiers `tools/` lors d’un transfert.
 

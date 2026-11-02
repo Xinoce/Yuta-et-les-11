@@ -4,9 +4,9 @@ Application multijoueur en français pour jouer à **Yuta et les 11**. L’inter
 
 ## Installer et démarrer sous Windows
 
-Téléchargez puis lancez `release\Yuta-et-les-11-Setup-0.1.15.exe`. L’application s’ouvre dans sa propre fenêtre et n’exige pas que Node.js soit installé sur le PC de jeu. Un raccourci est ajouté au bureau et au menu Démarrer. Les sauvegardes sont conservées dans les données utilisateur Windows de l’application.
+Téléchargez puis lancez `release\Yuta-et-les-11-Setup-0.1.16.exe`. L’application s’ouvre dans sa propre fenêtre et n’exige pas que Node.js soit installé sur le PC de jeu. Un raccourci est ajouté au bureau et au menu Démarrer. Les sauvegardes sont conservées dans les données utilisateur Windows de l’application.
 
-À partir de la 0.1.7, l’application vérifie les mises à jour au démarrage, les télécharge en arrière-plan et propose de redémarrer pour les installer. Les utilisateurs de la 0.1.6 doivent installer la 0.1.7 manuellement une première fois.
+À partir de la 0.1.7, l’application vérifie les mises à jour au démarrage et les télécharge en arrière-plan. Depuis **Réglages → Mises à jour**, on peut aussi lancer une recherche manuelle et installer une mise à jour prête au moment choisi ; l’installation demande de redémarrer l’application.
 
 Le MJ peut héberger en ligne depuis **Réglages → Héberger en ligne**. L’application ouvre un tunnel temporaire Cloudflare vers son PC ; les joueurs n’ont pas à connaître son IP, ouvrir de port ou installer Hamachi. Le serveur local écoute uniquement sur le PC du MJ et l’application n’a pas besoin d’ajouter de règle entrante au pare-feu Windows. Ils ouvrent le lien HTTPS transmis par le MJ, puis utilisent l’ID de partie et son mot de passe. L’ID est aléatoire et ne contient pas d’information personnelle. Le mot de passe de partie est stocké sous forme hachée.
 
@@ -27,7 +27,7 @@ Il n’y a plus de compte MJ partagé ou de mot de passe administrateur par déf
 
 Les campagnes visibles apparaissent dans la liste actualisée depuis le lien du MJ. Une partie masquée peut toujours être rejointe avec son lien direct et son mot de passe. Le MJ peut mettre une campagne en pause, la reprendre, l’arrêter ou la supprimer ; s’il ne reste aucune campagne active, l’application ouvre l’accueil de campagne au prochain démarrage. Les joueurs et le MJ peuvent modifier leur pseudo dans **Réglages du compte** ; une fois Supabase lié, le mot de passe se change aussi depuis ces réglages. Dans l’application, **Amis** affiche les demandes et invitations ; **Retour** revient à l’écran précédent, **Menu principal** permet de choisir à nouveau MJ ou Joueur, et **Déconnexion** ferme la session.
 
-Dans l’onglet **Game**, le MJ ajoute des images de carte ou de personnages et choisit celle qui est visible par les joueurs. Les joueurs voient uniquement l’image partagée. Chaque fiche (héros, compagnon, PNJ, monstre ou autre) peut aussi avoir son propre portrait/visuel, modifiable depuis la fiche. Les images sont hébergées par le PC du MJ. Le MJ et les joueurs disposent du lancer rapide de D20 et d’un petit résumé des derniers résultats, synchronisés en direct.
+Dans l’onglet **Game**, le MJ ajoute des images de carte ou de personnages et choisit celle qui est visible par les joueurs. Sur l’image diffusée, il peut dessiner au stylo, puis créer des jetons personnalisés par nom et couleur et les attribuer à un ou plusieurs joueurs. Le MJ peut déplacer tous les jetons ; les joueurs déplacent ceux qui leur sont confiés. Les traits et déplacements sont synchronisés en direct et conservés avec la campagne. Chaque fiche (héros, compagnon, PNJ, monstre ou autre) peut aussi avoir son propre portrait/visuel, modifiable depuis la fiche. Le MJ et les joueurs disposent du lancer rapide de D20 et d’un petit résumé des derniers résultats.
 
 Supabase Auth gère les connexions sur le projet `https://cbwdbjwpexgxbewdpnzh.supabase.co`. Les codes joueurs, profils publics, relations d’amitié et invitations sont stockés dans les tables protégées par RLS du projet Supabase ; aucune adresse e-mail n’est affichée aux amis. Pour activer ces fonctions, exécutez `supabase/migrations/20261102000000_social_friends_invites.sql` dans le SQL Editor du nouveau projet Supabase. Les mots de passe de campagne, campagnes et fichiers ne sont pas envoyés à Supabase. La configuration du projet et sa clé **publishable** sont dans `src/supabase.ts` et dans les valeurs par défaut de `server/index.js` ; aucun secret Supabase n’est utilisé côté client ou serveur. Pour remplacer le projet, configurer `VITE_SUPABASE_URL` et `VITE_SUPABASE_PUBLISHABLE_KEY` au moment de compiler, ainsi que `SUPABASE_URL` et `SUPABASE_PUBLISHABLE_KEY` pour le serveur. Après le changement de projet, les profils locaux peuvent être reconnectés en se connectant au nouveau compte Supabase avec la même adresse e-mail confirmée. Les comptes, IDs d’amis et invitations de l’ancien projet ne sont pas transférés automatiquement. Les profils MJ comme joueurs se créent depuis l’écran correspondant et utilisent Supabase Auth.
 
@@ -51,7 +51,7 @@ npm install
 npm run package:win
 ```
 
-Le fichier généré se trouve dans `release\Yuta-et-les-11-Setup-0.1.15.exe`.
+Le fichier généré se trouve dans `release\Yuta-et-les-11-Setup-0.1.16.exe`.
 
 ## Publier une mise à jour
 
@@ -61,7 +61,7 @@ Le dépôt public [Xinoce/Yuta-et-les-11](https://github.com/Xinoce/Yuta-et-les-
 
 - Comptes Supabase Auth (e-mail et mot de passe), reliés à un profil local sur chaque PC MJ ; les campagnes et ressources restent chez le MJ.
 - Plusieurs campagnes par MJ, avec sélection, pause, reprise, arrêt et suppression confirmée.
-- Écran **Game** avec partage d’images par le MJ, aperçu joueur en direct, lancer de D20 et résumé compact des résultats.
+- Écran **Game** avec partage d’images, annotations au stylo, jetons assignables et déplaçables, lancer de dés et synchronisation en direct.
 - Fiches créées par le MJ comme PNJ, monstres, autres fiches ou compagnons attribués à un joueur ; un joueur peut choisir parmi plusieurs héros et compagnons jouables.
 - Fiches personnage illustrables (portrait JPG, PNG, GIF ou WebP jusqu’à 10 Mo) avec les sept caractéristiques et la répartition officielle des bonus `+3, +2, +1, +1, +0, +0, +0`.
 - Inventaire et golds suivis par personnage, modifiables par le MJ et consultables par le joueur.
