@@ -18,8 +18,8 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const clientBuild = path.resolve(here, '../dist')
 const gameImageRoot = path.join(dataDir, 'game-images')
 const characterImageRoot = path.join(dataDir, 'character-images')
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://tgpgqkjjlfuofonejmse.supabase.co'
-const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_B1VJJ0QUceDgNJVZ9Xa2ww_ChtgvPJt'
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://cbwdbjwpexgxbewdpnzh.supabase.co'
+const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_CHvw8b1AYChtTwnqjO5YCw_bOOpMhbp'
 app.disable('x-powered-by')
 app.set('trust proxy', 'loopback')
 app.use(express.json({ limit: '16mb' }))
@@ -48,6 +48,7 @@ async function verifySupabaseIdentity(accessToken) {
     return identity?.id && identity?.email ? { identity, unavailable: false } : { identity: null, unavailable: false }
   } catch { return { identity: null, unavailable: true } }
 }
+const hasVerifiedSupabaseEmail = (identity) => Boolean(identity?.email_confirmed_at || identity?.confirmed_at)
 async function claimSocialGameInvitation(accessToken, invitationId, gameId, hostUrl) {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(invitationId)) return false
   const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/claim_social_game_invitation`, {
@@ -238,6 +239,19 @@ app.post('/api/auth/login', async (req, res) => {
     if (unavailable) return fail(res, 503, 'Supabase est momentanément inaccessible. Réessaie dans un instant.')
     if (!identity) return fail(res, 401, 'La session Supabase a expiré. Connecte-toi à nouveau.')
     user = db.prepare('SELECT * FROM users WHERE auth_user_id=?').get(identity.id)
+    if (!user) {
+      const localEmail = db.prepare('SELECT * FROM users WHERE lower(email)=lower(?)').get(identity.email)
+      if (localEmail?.auth_user_id && localEmail.auth_user_id !== identity.id) {
+        if (!hasVerifiedSupabaseEmail(identity)) return fail(res, 403, 'Confirme ton adresse e-mail dans Supabase avant de reconnecter ce profil local.')
+        try {
+          db.prepare('UPDATE users SET auth_user_id=?,email=? WHERE id=?').run(identity.id, identity.email.toLowerCase(), localEmail.id)
+          user = db.prepare('SELECT * FROM users WHERE id=?').get(localEmail.id)
+        } catch (error) {
+          if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') return fail(res, 409, 'Ce compte Supabase est déjà lié à un autre profil sur ce PC.')
+          throw error
+        }
+      }
+    }
     if (!user && req.body?.role === 'player') {
       const localEmail = db.prepare('SELECT * FROM users WHERE lower(email)=lower(?)').get(identity.email)
       if (localEmail) return fail(res, 409, 'Ce profil existe déjà sur ce PC mais son compte Supabase n’est pas lié. Connecte-toi avec ton ancien identifiant puis lie-le dans Réglages.')
@@ -268,7 +282,10 @@ app.post('/api/auth/link-supabase', authAccount, async (req, res) => {
   const { identity, unavailable } = await verifySupabaseIdentity(req.body?.accessToken)
   if (unavailable) return fail(res, 503, 'Supabase est momentanément inaccessible. Réessaie dans un instant.')
   if (!identity) return fail(res, 401, 'La session Supabase a expiré. Connecte-toi à nouveau.')
-  if (req.user.auth_user_id && req.user.auth_user_id !== identity.id) return fail(res, 409, 'Un autre compte Supabase est déjà lié à ce profil.')
+  if (req.user.auth_user_id && req.user.auth_user_id !== identity.id &&
+      (identity.email.toLowerCase() !== req.user.email.toLowerCase() || !hasVerifiedSupabaseEmail(identity))) {
+    return fail(res, 409, 'Pour reconnecter ce profil à un autre projet Supabase, utilise la même adresse e-mail et confirme-la dans Supabase.')
+  }
   const linkedElsewhere = db.prepare('SELECT id FROM users WHERE auth_user_id=? AND id<>?').get(identity.id, req.user.id)
   if (linkedElsewhere) return fail(res, 409, 'Ce compte Supabase est déjà lié à un autre profil sur ce PC.')
   const emailOwner = db.prepare('SELECT id FROM users WHERE lower(email)=lower(?) AND id<>?').get(identity.email, req.user.id)
