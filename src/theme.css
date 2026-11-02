@@ -83,9 +83,6 @@
 .auth-card .auth-form { gap: 11px; margin-top: 14px; }
 .auth-form label,.settings-form label,.setup-card label { color: #bdb9ae; font-size: 9px; }
 .auth-form input,.settings-form input,.setup-card input { padding: 10px 12px; font-size: 11px; }
-.admin-hint { display: flex; align-items: flex-start; gap: 8px; padding: 10px; border: 1px solid #9d80454a; border-radius: 3px; background: #b08c3610; color: #b4aa91; font-size: 8px; line-height: 1.55; }
-.admin-hint svg { flex: none; color: #d0b271; }
-.admin-hint strong { color: #e2ca8e; }
 .auth-submit { width: 100%; padding: 12px; margin-top: 3px; }
 .auth-card>.text-link { margin-top: 14px; }
 .back-link { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: transparent; color: #a29d8f; font-size: 10px; }
@@ -417,4 +414,18 @@
 @media(max-width:720px) {
   .sidebar .side-nav { grid-template-columns: repeat(7,minmax(42px,1fr)); overflow-x: auto; }
   .social-home-shell .side-nav { grid-template-columns: repeat(2,minmax(42px,1fr)); }
+}
+
+/* Scale the complete interface up on wide, high-resolution displays so the
+   typography and controls remain comfortable to read at 2K and above. */
+@media (min-width: 1600px) {
+  #root { zoom: 1.08; }
+}
+@media (min-width: 1920px) {
+  #root { zoom: 1.16; }
+  .page-content { max-width: 1450px; }
+}
+@media (min-width: 2400px) {
+  #root { zoom: 1.28; }
+  .page-content { max-width: 1650px; }
 }
