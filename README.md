@@ -1,10 +1,10 @@
 # Yuta et les 11 — La Table
 
-Application multijoueur en français pour jouer à **Yuta et les 11**. L’interface adopte une ambiance manga/anime fantasy, sombre et prestigieuse, avec des sceaux arcanes et des accents dorés. Supabase Auth gère les identités et mots de passe ; les profils de campagne, personnages, lancers et images sont conservés sur le PC du MJ.
+Application multijoueur en français pour jouer à **Yuta et les 11**. L’interface adopte une ambiance manga/anime fantasy, sombre et prestigieuse, avec des sceaux arcanes et des accents dorés. Supabase Auth gère les identités et mots de passe, et Supabase synchronise les profils publics, amis et invitations ; les campagnes, personnages, lancers et images restent sur le PC du MJ.
 
 ## Installer et démarrer sous Windows
 
-Téléchargez puis lancez `release\Yuta-et-les-11-Setup-0.1.10.exe`. L’application s’ouvre dans sa propre fenêtre et n’exige pas que Node.js soit installé sur le PC de jeu. Un raccourci est ajouté au bureau et au menu Démarrer. Les sauvegardes sont conservées dans les données utilisateur Windows de l’application.
+Téléchargez puis lancez `release\Yuta-et-les-11-Setup-0.1.11.exe`. L’application s’ouvre dans sa propre fenêtre et n’exige pas que Node.js soit installé sur le PC de jeu. Un raccourci est ajouté au bureau et au menu Démarrer. Les sauvegardes sont conservées dans les données utilisateur Windows de l’application.
 
 À partir de la 0.1.7, l’application vérifie les mises à jour au démarrage, les télécharge en arrière-plan et propose de redémarrer pour les installer. Les utilisateurs de la 0.1.6 doivent installer la 0.1.7 manuellement une première fois.
 
@@ -27,14 +27,14 @@ Le compte impose de choisir un nouveau mot de passe à la première connexion. L
 
 1. À l’ouverture, choisissez **Maître du Jeu** ou **Joueur**.
 2. Le MJ se connecte, définit son mot de passe, crée sa campagne et choisit son mot de passe de partie. Dans **Réglages**, il démarre le lien en ligne, qu’il transmet aux joueurs avec le mot de passe de partie par un autre moyen.
-3. Les joueurs ouvrent le lien du MJ dans leur navigateur. L’ID sélectionne directement la partie ; ils saisissent le mot de passe de partie puis créent un compte Supabase ou se connectent avec leur adresse e-mail. Un compte joueur peut rejoindre plusieurs PC MJ avec la même identité.
+3. Les joueurs peuvent créer leur compte avant d’avoir une partie. Dans **Amis**, chacun partage son ID `Y11-XXXXXXXXXX` pour s’ajouter. Un MJ peut envoyer une invitation à une campagne à ses amis ; le lien personnel permet de rejoindre sans transmettre le mot de passe de campagne. Les joueurs peuvent aussi ouvrir le lien public du MJ et utiliser le mot de passe comme avant. Un compte joueur peut rejoindre plusieurs PC MJ avec la même identité.
 4. Un joueur sans personnage est dirigé vers la création de sa fiche. S’il en a déjà, il choisit lequel jouer. Plusieurs personnages peuvent être rattachés à son compte.
 
-Les campagnes visibles apparaissent dans la liste actualisée depuis le lien du MJ. Une partie masquée peut toujours être rejointe avec son lien direct et son mot de passe. Le MJ peut mettre une campagne en pause, la reprendre, l’arrêter ou la supprimer ; s’il ne reste aucune campagne active, l’application ouvre l’accueil de campagne au prochain démarrage. Les joueurs et le MJ peuvent modifier leur pseudo dans **Réglages du compte** ; une fois Supabase lié, le mot de passe se change aussi depuis ces réglages. Dans l’application, **Retour** revient à l’écran précédent, **Menu principal** permet de choisir à nouveau MJ ou Joueur, et **Déconnexion** ferme la session.
+Les campagnes visibles apparaissent dans la liste actualisée depuis le lien du MJ. Une partie masquée peut toujours être rejointe avec son lien direct et son mot de passe. Le MJ peut mettre une campagne en pause, la reprendre, l’arrêter ou la supprimer ; s’il ne reste aucune campagne active, l’application ouvre l’accueil de campagne au prochain démarrage. Les joueurs et le MJ peuvent modifier leur pseudo dans **Réglages du compte** ; une fois Supabase lié, le mot de passe se change aussi depuis ces réglages. Dans l’application, **Amis** affiche les demandes et invitations ; **Retour** revient à l’écran précédent, **Menu principal** permet de choisir à nouveau MJ ou Joueur, et **Déconnexion** ferme la session.
 
 Dans l’onglet **Game**, le MJ ajoute des images de carte ou de personnages et choisit celle qui est visible par les joueurs. Les joueurs voient uniquement l’image partagée. Chaque fiche (héros, compagnon, PNJ, monstre ou autre) peut aussi avoir son propre portrait/visuel, modifiable depuis la fiche. Les images sont hébergées par le PC du MJ. Le MJ et les joueurs disposent du lancer rapide de D20 et d’un petit résumé des derniers résultats, synchronisés en direct.
 
-Supabase sert uniquement à l’authentification. La configuration du projet et sa clé **publishable** sont dans `src/supabase.ts` et dans les valeurs par défaut de `server/index.js` ; aucun secret Supabase n’est utilisé côté client ou serveur. Pour remplacer le projet, configurer `VITE_SUPABASE_URL` et `VITE_SUPABASE_PUBLISHABLE_KEY` au moment de compiler, ainsi que `SUPABASE_URL` et `SUPABASE_PUBLISHABLE_KEY` pour le serveur. Les comptes locaux existants restent accessibles avec leur ancien pseudo jusqu’à ce qu’ils lient un compte Supabase dans Réglages. Le premier MJ conserve son profil `Yuta`, change le mot de passe temporaire, crée une première campagne, puis lie son compte depuis Réglages.
+Supabase Auth gère les connexions. Les codes joueurs, profils publics, relations d’amitié et invitations sont stockés dans les tables protégées par RLS du projet Supabase ; aucune adresse e-mail n’est affichée aux amis. Pour activer ces fonctions, exécutez `supabase/migrations/20261102000000_social_friends_invites.sql` dans le SQL Editor du projet Supabase. Les mots de passe de campagne, campagnes et fichiers ne sont pas envoyés à Supabase. La configuration du projet et sa clé **publishable** sont dans `src/supabase.ts` et dans les valeurs par défaut de `server/index.js` ; aucun secret Supabase n’est utilisé côté client ou serveur. Pour remplacer le projet, configurer `VITE_SUPABASE_URL` et `VITE_SUPABASE_PUBLISHABLE_KEY` au moment de compiler, ainsi que `SUPABASE_URL` et `SUPABASE_PUBLISHABLE_KEY` pour le serveur. Les comptes locaux existants restent accessibles avec leur ancien pseudo jusqu’à ce qu’ils lient un compte Supabase dans Réglages. Le premier MJ conserve son profil `Yuta`, change le mot de passe temporaire, crée une première campagne, puis lie son compte depuis Réglages.
 
 Pour les inscriptions avec confirmation par e-mail, configurez un serveur SMTP personnalisé dans les paramètres Auth de Supabase : le service e-mail intégré aux projets hébergés n’envoie qu’aux membres de l’organisation et est limité à 2 e-mails par heure ([documentation SMTP Supabase](https://supabase.com/docs/guides/auth/auth-smtp)). La confirmation peut être désactivée pour un essai fermé, mais les adresses ne seront alors pas vérifiées.
 
@@ -56,11 +56,11 @@ npm install
 npm run package:win
 ```
 
-Le fichier généré se trouve dans `release\Yuta-et-les-11-Setup-0.1.10.exe`.
+Le fichier généré se trouve dans `release\Yuta-et-les-11-Setup-0.1.11.exe`.
 
 ## Publier une mise à jour
 
-Le dépôt public [Xinoce/Yuta-et-les-11](https://github.com/Xinoce/Yuta-et-les-11) publie les installateurs sur GitHub Releases. Pour une nouvelle version, mettez à jour la version de `package.json`, poussez le code sur `main`, puis créez et poussez un tag correspondant, par exemple `v0.1.11`. GitHub Actions compile Windows et publie l’installateur ainsi que les métadonnées utilisées par l’auto‑mise‑à‑jour.
+Le dépôt public [Xinoce/Yuta-et-les-11](https://github.com/Xinoce/Yuta-et-les-11) publie les installateurs sur GitHub Releases. Pour une nouvelle version, mettez à jour la version de `package.json`, poussez le code sur `main`, puis créez et poussez un tag correspondant, par exemple `v0.1.12`. GitHub Actions compile Windows et publie l’installateur ainsi que les métadonnées utilisées par l’auto‑mise‑à‑jour.
 
 ## Socle de jeu
 
@@ -73,6 +73,7 @@ Le dépôt public [Xinoce/Yuta-et-les-11](https://github.com/Xinoce/Yuta-et-les-
 - Lancers rapides et personnalisés, historique conservé et partagé en direct.
 - Requêtes de test du MJ, difficulté, caractéristique, modificateurs et résolution par le joueur visé.
 - Présence des participants et interface adaptée aux petits écrans.
+- Comptes joueurs créables sans rejoindre immédiatement une campagne, ID joueur public, demandes d’amitié et invitations privées de campagne via Supabase.
 
 ## Vérifications
 
@@ -80,5 +81,4 @@ Le dépôt public [Xinoce/Yuta-et-les-11](https://github.com/Xinoce/Yuta-et-les-
 npm test
 npm run build
 ```
-
 
