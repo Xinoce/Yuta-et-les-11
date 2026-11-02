@@ -90,7 +90,12 @@
 .auth-card>.text-link { margin-top: 14px; }
 .back-link { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: transparent; color: #a29d8f; font-size: 10px; }
 .back-link:hover { color: #e1c786; }
-.back-link svg { color: #c4a66a; transform: rotate(45deg); }
+.back-link svg { color: #c4a66a; }
+.topbar-nav-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 30px; padding: 6px 10px; border: 1px solid #494332; border-radius: 3px; background: #211f19; color: #cfb77f; font-size: 9px; white-space: nowrap; }
+.topbar-nav-button:hover { border-color: #b69b65; background: #29251b; color: #ead49b; }
+.topbar-nav-button.logout { border-color: #62443d; color: #d3a097; }
+.topbar-nav-button.logout:hover { border-color: #a46459; background: #2a1e1b; color: #edb0a4; }
+.flow-global-actions { position: fixed; z-index: 10; top: 18px; right: 20px; display: flex; align-items: center; gap: 8px; }
 .setup-screen { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(ellipse at 50% 40%,#30291c 0%,#181914 43%,#10110f 100%); }
 .setup-card { max-width: 510px; padding: 36px; }
 .setup-emblem { position: relative; width: 58px; height: 58px; display: grid; place-items: center; margin-bottom: 22px; border: 1px solid #c7a76a77; border-radius: 50%; background: radial-gradient(circle,#c7a76a1b,#c7a76a06); color: #dfc17f; box-shadow: 0 0 35px #c7a76a16,inset 0 0 20px #c7a76a0c; }
@@ -226,6 +231,10 @@
   .character-pick-screen { padding: 12px 0; }
 }
 @media(max-width:560px) {
+  .topbar-nav-button { min-height: 29px; padding: 6px 8px; }
+  .topbar-nav-button span { display: none; }
+  .flow-global-actions { top: 12px; right: 12px; gap: 6px; }
+  .flow-global-actions .topbar-nav-button { padding: 7px 8px; }
   .welcome-screen { padding: 16px 16px 15px; }
   .welcome-top { font-size: 9px; }
   .welcome-top small { font-size: 7px; }
