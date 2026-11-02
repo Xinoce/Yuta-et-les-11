@@ -4,16 +4,61 @@
 create table if not exists public.social_profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
   public_id text not null unique default (
-    'Y11-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 10))
+    'joueur#' || lpad(floor(random() * 10000)::integer::text, 4, '0')
   ),
   username text not null,
   display_name text not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+create or replace function public.generate_social_public_id(p_username text, p_user_id uuid default null)
+returns text
+language plpgsql
+volatile
+security definer
+set search_path = public
+as $$
+declare
+  v_username text := left(regexp_replace(btrim(coalesce(p_username, '')), '[^a-zA-Z0-9._-]', '', 'g'), 24);
+  v_candidate text;
+  v_attempt integer := 0;
+begin
+  if length(v_username) < 2 then v_username := 'joueur'; end if;
+  loop
+    v_candidate := v_username || '#' || lpad(floor(random() * 10000)::integer::text, 4, '0');
+    if not exists (
+      select 1 from public.social_profiles p
+      where lower(p.public_id) = lower(v_candidate)
+        and (p_user_id is null or p.user_id <> p_user_id)
+    ) then return v_candidate; end if;
+    v_attempt := v_attempt + 1;
+    if v_attempt >= 10000 then raise exception 'Impossible de générer un ID joueur disponible.'; end if;
+  end loop;
+end;
+$$;
+
 alter table public.social_profiles alter column public_id set default (
-  'Y11-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 10))
+  'joueur#' || lpad(floor(random() * 10000)::integer::text, 4, '0')
 );
+
+do $$
+declare
+  v_profile record;
+begin
+  for v_profile in
+    select user_id, username from public.social_profiles
+    where public_id !~ '#[0-9]{4}$'
+    order by user_id
+  loop
+    update public.social_profiles
+      set public_id = public.generate_social_public_id(v_profile.username, v_profile.user_id)
+      where user_id = v_profile.user_id;
+  end loop;
+end;
+$$;
+
+create unique index if not exists social_profiles_public_id_ci_unique
+  on public.social_profiles(lower(public_id));
 
 create table if not exists public.social_friendships (
   user_low uuid not null references public.social_profiles(user_id) on delete cascade,
@@ -97,10 +142,11 @@ declare
   v_username text;
   v_display_name text;
 begin
-  v_username := coalesce(nullif(btrim(new.raw_user_meta_data ->> 'username'), ''), split_part(new.email, '@', 1), 'joueur');
+  v_username := left(regexp_replace(coalesce(nullif(btrim(new.raw_user_meta_data ->> 'username'), ''), split_part(new.email, '@', 1), 'joueur'), '[^a-zA-Z0-9._-]', '', 'g'), 24);
+  if length(v_username) < 2 then v_username := 'joueur'; end if;
   v_display_name := coalesce(nullif(btrim(new.raw_user_meta_data ->> 'displayName'), ''), nullif(btrim(new.raw_user_meta_data ->> 'display_name'), ''), v_username);
-  insert into public.social_profiles(user_id, username, display_name)
-  values (new.id, left(v_username, 24), left(v_display_name, 40))
+  insert into public.social_profiles(user_id, public_id, username, display_name)
+  values (new.id, public.generate_social_public_id(v_username, new.id), v_username, left(v_display_name, 40))
   on conflict (user_id) do nothing;
   return new;
 end;
@@ -126,9 +172,13 @@ begin
   if v_user_id is null then raise exception 'Authentification requise.'; end if;
   if v_username !~ '^[a-zA-Z0-9._-]{2,24}$' then raise exception 'Pseudo invalide.'; end if;
   if length(v_display_name) < 2 then raise exception 'Pseudo affiché invalide.'; end if;
-  insert into public.social_profiles(user_id, username, display_name)
-  values (v_user_id, v_username, v_display_name)
-  on conflict (user_id) do update set username = excluded.username, display_name = excluded.display_name, updated_at = now()
+  insert into public.social_profiles(user_id, public_id, username, display_name)
+  values (v_user_id, public.generate_social_public_id(v_username, v_user_id), v_username, v_display_name)
+  on conflict (user_id) do update set
+    public_id = case when public.social_profiles.username is distinct from excluded.username
+      then public.generate_social_public_id(excluded.username, v_user_id)
+      else public.social_profiles.public_id end,
+    username = excluded.username, display_name = excluded.display_name, updated_at = now()
   returning * into v_profile;
   return jsonb_build_object('user_id', v_profile.user_id, 'public_id', v_profile.public_id,
     'username', v_profile.username, 'display_name', v_profile.display_name);
@@ -146,7 +196,7 @@ as $$
     'username', p.username, 'display_name', p.display_name)
   from public.social_profiles p
   where auth.uid() is not null and p.user_id <> auth.uid()
-    and upper(p.public_id) = upper(btrim(coalesce(p_public_id, '')))
+    and lower(p.public_id) = lower(btrim(coalesce(p_public_id, '')))
   limit 1;
 $$;
 
@@ -276,6 +326,7 @@ end;
 $$;
 
 revoke all on function public.create_social_profile_for_auth_user() from public, anon, authenticated;
+revoke all on function public.generate_social_public_id(text, uuid) from public, anon, authenticated;
 revoke all on function public.sync_my_social_profile(text, text) from public, anon;
 revoke all on function public.find_social_profile(text) from public, anon;
 revoke all on function public.send_social_friend_request(uuid) from public, anon;
