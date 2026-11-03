@@ -4,9 +4,9 @@ Ce fichier sert de passation pour reprendre le développement de l’application
 
 ## État au moment de la passation
 
-- Version actuelle : **0.2.1**.
+- Version actuelle : **0.2.2**.
 - Application Windows Electron, interface React/TypeScript, serveur Express, Socket.IO et base SQLite.
-- L’installateur généré est `release/Yuta-et-les-11-Setup-0.2.1.exe`. Le dossier `release/` est ignoré par Git ; les installateurs sont publiés par GitHub Actions dans Releases.
+- L’installateur généré est `release/Yuta-et-les-11-Setup-0.2.2.exe`. Le dossier `release/` est ignoré par Git ; les installateurs sont publiés par GitHub Actions dans Releases.
 - Supabase Auth gère les comptes globaux. Chaque serveur MJ conserve les profils de campagne et les données de jeu localement ; `users.auth_user_id` relie un compte Supabase à son profil SQLite sur cet hôte.
 - La version 0.1.6 ajoute la liaison du compte Supabase, la connexion/inscription e-mail et les portraits de personnages hébergés dans `character-images/` sur le PC MJ.
 - La version 0.1.7 ajoute l’auto‑mise‑à‑jour via les GitHub Releases publiques du dépôt `Xinoce/Yuta-et-les-11`. Au démarrage, `desktop/main.cjs` vérifie les nouvelles versions, les télécharge puis demande confirmation avant de redémarrer.
@@ -22,6 +22,7 @@ Ce fichier sert de passation pour reprendre le développement de l’application
 - La version 0.1.18 affiche en bleu l’information demandant de confirmer l’adresse e-mail après l’inscription.
 - La version 0.2.0 ajoute un accueil illustré distinct pour MJ et joueur, avec campagne, amis et module de dés. Le visuel conserve son ratio avec des bandes noires selon la fenêtre ; le portrait par défaut est intégré sous la zone transparente du décor et peut être remplacé localement.
 - La version 0.2.1 rend l’accueil adaptatif en 1080p et dans les fenêtres basses : les panneaux se réorganisent en grille, la page défile au besoin et les écrans étroits empilent les panneaux.
+- La version 0.2.2 conserve le tableau de bord illustré et adapte seulement l’échelle de l’artboard aux dimensions de la fenêtre, sans réorganiser ses panneaux.
 - Cette copie de travail n’a pas de dossier Git (`.git` absent). Le dépôt distant du projet est [Xinoce/Yuta-et-les-11](https://github.com/Xinoce/Yuta-et-les-11) ; récupérer son historique avec `git clone` pour une nouvelle copie de développement.
 
 ## Installer le projet sur un autre PC
@@ -106,6 +107,6 @@ Il n’y a plus de compte MJ précréé. Au démarrage, le serveur supprime l’
 
 Pour publier la version suivante, augmenter la version racine dans package.json et package-lock.json, pousser le code sur main puis créer et pousser le tag correspondant. Le workflow compile sans publication electron-builder puis utilise GitHub CLI et son GITHUB_TOKEN pour créer la release et téléverser installateur, blockmap et latest.yml.
 
-Pour reprendre avec Codex sur un autre PC, ouvrir le dossier du projet et lui demander de lire `README_CODEX.md` ainsi que `README.md` avant de modifier le code. La version actuelle est 0.2.1 ; préserver les dossiers de sauvegarde et les fichiers `tools/` lors d’un transfert.
+Pour reprendre avec Codex sur un autre PC, ouvrir le dossier du projet et lui demander de lire `README_CODEX.md` ainsi que `README.md` avant de modifier le code. La version actuelle est 0.2.2 ; préserver les dossiers de sauvegarde et les fichiers `tools/` lors d’un transfert.
 
 
