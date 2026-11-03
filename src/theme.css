@@ -577,8 +577,8 @@ html:has(.welcome-screen),body:has(.welcome-screen),#root:has(.welcome-screen) {
 .welcome-scenic { position: fixed; z-index: -2; inset: 0; width: 100%; height: 100%; overflow: hidden; background: #101116; }
 .welcome-scenic img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center center; }
 .welcome-scenic-shade { position: absolute; inset: 0; background: linear-gradient(90deg,#080b1215 0%,transparent 42%,#08091128 100%),linear-gradient(0deg,#05060b36,transparent 54%,#05060b20); }
-.welcome-body { position: absolute; z-index: 1; inset: 0; display: flex; align-items: center; justify-content: flex-end; box-sizing: border-box; width: 100%; height: 100%; min-height: 0; margin: 0; padding: 0 clamp(12px,2.5vw,48px); pointer-events: none; }
-.role-card.auth-card { position: relative; inset: auto; box-sizing: border-box; width: min(42vw,560px,calc(91.46dvh - 30px)); max-height: calc(100dvh - 32px); aspect-ratio: 1199 / 1312; overflow: visible; margin: 0; padding: 0; border: 0; border-radius: 0; transform: none; background: transparent; box-shadow: none; backdrop-filter: none; pointer-events: auto; }
+.welcome-body { position: absolute; z-index: 1; inset: 0; display: block; box-sizing: border-box; width: 100%; height: 100%; min-height: 0; margin: 0; padding: 0; pointer-events: none; }
+.role-card.auth-card { position: absolute; top: 50%; right: clamp(20px,5vw,96px); left: auto; box-sizing: border-box; width: min(42vw,560px,calc(91.46dvh - 30px)); max-height: calc(100dvh - 32px); aspect-ratio: 1199 / 1312; overflow: visible; margin: 0; padding: 0; border: 0; border-radius: 0; transform: translateY(-50%); background: transparent; box-shadow: none; backdrop-filter: none; pointer-events: auto; }
 .role-card.auth-card::before,.role-card.auth-card::after { display: none; content: none; }
 .login-frame-art { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: fill; pointer-events: none; user-select: none; }
 .login-card-inner { position: absolute; inset: 27% 10% 7.5%; display: flex; flex-direction: column; align-items: stretch; min-height: 0; overflow-y: auto; padding: 0 1px 3px; scrollbar-width: thin; scrollbar-color: #81363c transparent; }
@@ -641,7 +641,7 @@ html:has(.welcome-screen),body:has(.welcome-screen),#root:has(.welcome-screen) {
   .welcome-scenic img { object-position: 28% center; }
   .welcome-scenic-shade { background: linear-gradient(90deg,#090b1144,transparent 48%,#090a1138),linear-gradient(0deg,#090a10b0 0%,#090a1044 58%,#090a103d 100%); }
   .welcome-body { position: relative; inset: auto; display: flex; height: auto; min-height: 100svh; padding: 18px 10px; justify-content: center; }
-  .role-card.auth-card { position: relative; top: auto; left: auto; width: min(94vw,520px); max-height: none; transform: none; }
+  .role-card.auth-card { position: relative; top: auto; right: auto; left: auto; width: min(94vw,520px); max-height: none; transform: none; }
   .login-card-inner { inset: 34% 10% 7.5%; }
 }
 @media (max-width: 520px) {
@@ -709,6 +709,6 @@ html:has(.welcome-screen),body:has(.welcome-screen),#root:has(.welcome-screen) {
    mise à l’échelle Windows élevée (petit viewport CSS sur un écran 1080p). */
 @media (max-width: 900px) and (min-aspect-ratio: 4/3) {
   .welcome-screen { height: 100dvh; overflow: hidden; padding: 0; }
-  .welcome-body { position: absolute; inset: 0; display: flex; flex-direction: row; align-items: center; justify-content: flex-end; width: 100%; height: 100%; min-height: 0; padding: 0 16px; }
-  .role-card.auth-card { position: relative; inset: auto; width: min(42vw,520px,calc(91.46dvh - 24px)); max-height: calc(100dvh - 24px); transform: none; }
+  .welcome-body { position: absolute; inset: 0; display: block; width: 100%; height: 100%; min-height: 0; padding: 0; }
+  .role-card.auth-card { position: absolute; top: 50%; right: 16px; left: auto; width: min(42vw,520px,calc(91.46dvh - 24px)); max-height: calc(100dvh - 24px); transform: translateY(-50%); }
 }
