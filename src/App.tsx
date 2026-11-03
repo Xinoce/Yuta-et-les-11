@@ -295,7 +295,7 @@ function WelcomeFlow({ onAuthenticated }: { onAuthenticated: (data: SessionData)
     try {
       if (register) {
         const email = String(values.email || '').trim().toLowerCase()
-        const role = values.role === 'gm' ? 'gm' : 'player'
+        const role = 'player'
         const { data: signedUp, error: signUpError } = await supabase.auth.signUp({
           email, password: String(values.password || ''),
           options: { data: { role, username: String(values.username || ''), displayName: String(values.displayName || '') } },
@@ -306,7 +306,7 @@ function WelcomeFlow({ onAuthenticated }: { onAuthenticated: (data: SessionData)
           setIdentifier(email)
           setRemember(true)
           try { localStorage.setItem('yuta.loginIdentifier', email) } catch { /* Remembering the address is optional. */ }
-          setInfo(`Compte ${role === 'gm' ? 'Maître du Jeu' : 'joueur'} créé. Confirme ton adresse e-mail, puis connecte-toi pour choisir ton espace.`)
+          setInfo('Compte joueur créé. Confirme ton adresse e-mail, puis connecte-toi pour choisir ton espace.')
           return
         }
         const data = await api<SessionData>('/api/auth/register', { method: 'POST', body: JSON.stringify({
@@ -414,7 +414,7 @@ function WelcomeFlow({ onAuthenticated }: { onAuthenticated: (data: SessionData)
     {step === 'auth' && card(<>
       <h1 className="login-title">{register ? 'Créer votre compte' : 'Connexion à votre compte'}</h1><div className="login-title-divider"><span>✥</span></div>
       <form onSubmit={submit} className={`auth-form ${register ? 'register-form' : ''}`}>
-        {register && <><label>Type de compte<select name="role" defaultValue="player" required><option value="player">Joueur</option><option value="gm">Maître du Jeu — accès MJ</option></select></label><label>Pseudo de connexion<input name="username" minLength={2} maxLength={24} placeholder="Ex. Mira" required autoComplete="username"/></label><label>Pseudo affiché<input name="displayName" minLength={2} maxLength={40} placeholder="Comment t’appelle-t-on ?" required autoComplete="nickname"/></label><label>Adresse e-mail<input name="email" type="email" placeholder="toi@exemple.fr" required autoComplete="email"/></label></>}
+        {register && <><label>Pseudo de connexion<input name="username" minLength={2} maxLength={24} placeholder="Ex. Mira" required autoComplete="username"/></label><label>Pseudo affiché<input name="displayName" minLength={2} maxLength={40} placeholder="Comment t’appelle-t-on ?" required autoComplete="nickname"/></label><label>Adresse e-mail<input name="email" type="email" placeholder="toi@exemple.fr" required autoComplete="email"/></label></>}
         {!register && <label className="auth-icon-field"><Mail size={19}/><input name="identifier" type="text" value={identifier} onChange={(event) => setIdentifier(event.target.value)} placeholder="Adresse e-mail" required autoComplete="username" aria-label="Adresse e-mail ou ancien pseudo"/></label>}
         <label className={register ? 'register-password-field' : 'auth-icon-field'}>{register ? <span>Mot de passe</span> : <LockKeyhole size={19}/>}<input name="password" type={showPassword ? 'text' : 'password'} minLength={register ? 10 : 1} placeholder="Mot de passe" required autoComplete={register ? 'new-password' : 'current-password'}/>{!register && <button className="password-visibility" type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}>{showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button>}</label>
         {!register && <div className="login-options"><label className="remember-option"><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)}/> <span>Se souvenir de moi</span></label><button type="button" className="forgot-link" onClick={() => void sendPasswordReset()} disabled={busy}>Mot de passe oublié ?</button></div>}

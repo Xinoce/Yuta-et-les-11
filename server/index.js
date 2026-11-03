@@ -215,17 +215,15 @@ app.get('/api/lobbies', (req, res) => {
 app.post('/api/auth/register', async (req, res) => {
   const displayName = cleanText(req.body?.displayName, 40)
   const username = cleanText(req.body?.username, 24)
-  const role = req.body?.role
+  const role = 'player'
   const { identity, unavailable } = await verifySupabaseIdentity(req.body?.accessToken)
   if (unavailable) return fail(res, 503, 'Supabase est momentanément inaccessible. Réessaie dans un instant.')
   if (!identity) return fail(res, 401, 'La session Supabase a expiré. Connecte-toi à nouveau.')
-  if (!['gm', 'player'].includes(role)) return fail(res, 400, 'Choisis le rôle Maître du Jeu ou joueur.')
   if (identity.user_metadata?.role && identity.user_metadata.role !== role) return fail(res, 403, 'Le rôle choisi ne correspond pas à ce compte Supabase.')
   const email = cleanText(identity.email, 254).toLowerCase()
   const joinPassword = req.body?.joinPassword
   const hasCampaign = req.body?.campaignId !== undefined && req.body?.campaignId !== null && String(req.body.campaignId).trim() !== ''
   const campaignId = hasCampaign ? Number(req.body.campaignId) : null
-  if (role === 'gm' && hasCampaign) return fail(res, 400, 'Un compte MJ crée sa campagne depuis son espace de jeu.')
   if (!/^[a-zA-Z0-9._-]{2,24}$/.test(username)) return fail(res, 400, 'Le pseudo de connexion doit faire 2 à 24 caractères (lettres, chiffres, . _ -).')
   if (displayName.length < 2) return fail(res, 400, 'Le pseudo affiché doit contenir au moins 2 caractères.')
   if (req.body?.email && cleanText(req.body.email, 254).toLowerCase() !== email) return fail(res, 400, 'L’adresse de la session Supabase ne correspond pas au compte créé.')
