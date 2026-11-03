@@ -48,4 +48,3 @@ test('les politiques limitent la gestion, la lecture et la réponse au bon parti
   assert.equal(canAnswerRequest(player, { ...campaign, id: 9 }, request), false)
   assert.equal(canAnswerRequest(otherPlayer, campaign, { ...request, target_group: true }), true)
 })
-

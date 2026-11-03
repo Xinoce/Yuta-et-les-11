@@ -26,9 +26,12 @@ export function parseNotation(notation) {
   return validateDice({ count, sides, modifier }) ? null : { count, sides, modifier }
 }
 
-export function resolveCheck({ natural, statBonus, circumstance = 0, difficulty }) {
+export function resolveCheck({ natural, statBonus, circumstance = 0, difficulty, criticalMode = 'positive' }) {
   const total = natural + statBonus + circumstance
-  const verdict = natural === 20 ? 'critical_success' : natural === 1 ? 'critical_failure' : total >= difficulty ? 'success' : 'failure'
+  const positive = criticalMode !== 'negative'
+  const criticalSuccess = positive ? 20 : 1
+  const criticalFailure = positive ? 1 : 20
+  const verdict = natural === criticalSuccess ? 'critical_success' : natural === criticalFailure ? 'critical_failure' : total >= difficulty ? 'success' : 'failure'
   return { total, verdict }
 }
 
@@ -53,4 +56,3 @@ export function canAnswerRequest(user, campaign, request) {
 export function safeJson(value, fallback) {
   try { return JSON.parse(value) } catch { return fallback }
 }
-

@@ -141,4 +141,3 @@ export function stopPublicTunnel() {
   tunnelProcess.kill()
   return snapshot()
 }
-

@@ -99,6 +99,7 @@ ensureColumn('campaigns', 'is_open', 'INTEGER NOT NULL DEFAULT 1')
 ensureColumn('campaigns', 'game_id', 'TEXT')
 ensureColumn('campaigns', 'join_password_hash', 'TEXT')
 ensureColumn('campaigns', 'status', "TEXT NOT NULL DEFAULT 'active'")
+ensureColumn('campaigns', 'critical_mode', "TEXT NOT NULL DEFAULT 'positive'")
 const gameIdUpdate = db.prepare('UPDATE campaigns SET game_id=? WHERE id=?')
 for (const campaign of db.prepare('SELECT id FROM campaigns WHERE game_id IS NULL OR game_id = ?').all('')) {
   gameIdUpdate.run(`Y11-${crypto.randomBytes(5).toString('hex').toUpperCase()}`, campaign.id)

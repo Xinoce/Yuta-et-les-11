@@ -107,4 +107,3 @@ Pour publier la version suivante, augmenter la version racine dans `package.json
 Pour reprendre avec Codex sur un autre PC, ouvrir le dossier du projet et lui demander de lire `README_CODEX.md` ainsi que `README.md` avant de modifier le code. La version actuelle est 0.1.18 ; préserver les dossiers de sauvegarde et les fichiers `tools/` lors d’un transfert.
 
 
-

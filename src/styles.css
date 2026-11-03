@@ -7,4 +7,3 @@
 
 @media(max-width:720px){.side-nav{grid-template-columns:repeat(6,minmax(0,1fr))}}
 .form-info{display:flex;align-items:flex-start;gap:8px;padding:11px 12px;color:#b7dfff;background:#17344b88;border:1px solid #4f91c477;border-radius:3px;font-size:11px;line-height:1.55}.form-info svg{color:#7fc3f4;flex:none;margin-top:1px}
-

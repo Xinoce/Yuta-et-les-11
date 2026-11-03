@@ -12,8 +12,8 @@ if (!process.env.SESSION_SECRET && !fs.existsSync(secretFile)) fs.writeFileSync(
 const sessionSecret = process.env.SESSION_SECRET || fs.readFileSync(secretFile)
 const b64 = (value) => Buffer.from(value).toString('base64url')
 
-export function signSession(userId) {
-  const payload = b64(JSON.stringify({ sub: userId, exp: Date.now() + 14 * 24 * 60 * 60 * 1000 }))
+export function signSession(userId, role) {
+  const payload = b64(JSON.stringify({ sub: userId, ...(role === 'gm' || role === 'player' ? { role } : {}), exp: Date.now() + 14 * 24 * 60 * 60 * 1000 }))
   const signature = crypto.createHmac('sha256', sessionSecret).update(payload).digest('base64url')
   return `${payload}.${signature}`
 }
@@ -32,6 +32,20 @@ export function verifySession(token) {
   } catch { return null }
 }
 
+export function sessionRole(token) {
+  if (!token || typeof token !== 'string') return null
+  const [payload, signature, extra] = token.split('.')
+  if (!payload || !signature || extra) return null
+  const expected = crypto.createHmac('sha256', sessionSecret).update(payload).digest()
+  let provided
+  try { provided = Buffer.from(signature, 'base64url') } catch { return null }
+  if (provided.length !== expected.length || !crypto.timingSafeEqual(expected, provided)) return null
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString())
+    return Number.isFinite(data.exp) && data.exp > Date.now() && (data.role === 'gm' || data.role === 'player') ? data.role : null
+  } catch { return null }
+}
+
 export function parseCookie(header = '') {
   const entry = header.split(';').map((item) => item.trim()).find((item) => item.startsWith(`${COOKIE}=`))
   return entry ? decodeURIComponent(entry.slice(COOKIE.length + 1)) : null
@@ -44,4 +58,3 @@ export function sessionCookie(token, secureOverride) {
 }
 
 export const clearSessionCookie = (secure = false) => `${COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${secure ? '; Secure' : ''}`
-

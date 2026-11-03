@@ -7,7 +7,7 @@ import { createServer } from 'node:http'
 import { Server } from 'socket.io'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dataDir, db, json, rowCharacter } from './db.js'
-import { clearSessionCookie, parseCookie, sessionCookie, signSession, verifySession } from './auth.js'
+import { clearSessionCookie, parseCookie, sessionCookie, sessionRole, signSession, verifySession } from './auth.js'
 import { canAnswerRequest, canEditCharacter, canManageCampaign, canReadCharacter, parseNotation, resolveCheck, safeJson, STATS, validCreationStats, validateDice } from './domain.js'
 import { getTunnelStatus, startPublicTunnel, stopPublicTunnel } from './online.js'
 
@@ -22,11 +22,16 @@ const SUPABASE_URL = process.env.SUPABASE_URL || 'https://cbwdbjwpexgxbewdpnzh.s
 const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_CHvw8b1AYChtTwnqjO5YCw_bOOpMhbp'
 app.disable('x-powered-by')
 app.set('trust proxy', 'loopback')
-app.use(express.json({ limit: '16mb' }))
+app.use(express.json({ limit: '24mb' }))
+app.use((error, _req, res, next) => {
+  if (error?.type === 'entity.too.large') return res.status(413).json({ error: 'La requête est trop volumineuse. Réduis la taille de l’image puis réessaie.' })
+  next(error)
+})
 if (fs.existsSync(clientBuild)) app.use(express.static(clientBuild))
 
-const publicUser = ({ id, email, username, display_name, role, must_change_password, auth_user_id }) => ({
+const publicUser = ({ id, email, username, display_name, role, account_role, must_change_password, auth_user_id }) => ({
   id, email, username: username || display_name, displayName: display_name, role,
+  canGM: (account_role || role) === 'gm',
   mustChangePassword: Boolean(must_change_password), authLinked: Boolean(auth_user_id),
 })
 const fail = (res, status, error) => res.status(status).json({ error })
@@ -98,7 +103,8 @@ const campaignInfo = (campaign, userId) => campaign && ({
   inviteCode: campaign.owner_id === userId ? campaign.invite_code : null,
   legacyJoinPassword: campaign.owner_id === userId && !campaign.join_password_hash ? campaign.invite_code : null,
   joinPasswordSet: Boolean(campaign.join_password_hash || campaign.invite_code), isOpen: Boolean(campaign.is_open),
-  status: campaign.status || 'active', isOwner: campaign.owner_id === userId,
+  status: campaign.status || 'active', criticalMode: campaign.critical_mode === 'negative' ? 'negative' : 'positive',
+  isOwner: campaign.owner_id === userId,
 })
 const characterInfo = (row) => {
   const character = rowCharacter(row)
@@ -118,6 +124,7 @@ const startupCampaign = (userId) => {
   return campaign
 }
 const member = (campaignId, userId) => db.prepare('SELECT 1 FROM campaign_members WHERE campaign_id=? AND user_id=?').get(campaignId, userId)
+const roleFor = (userId, actingUser) => userId === actingUser.id ? actingUser.role : db.prepare('SELECT role FROM users WHERE id=?').get(userId)?.role
 const getCharacter = (id) => characterInfo(db.prepare('SELECT * FROM characters WHERE id=?').get(id))
 const getRoll = (id) => {
   const row = db.prepare('SELECT * FROM rolls WHERE id=?').get(id)
@@ -147,9 +154,13 @@ const getRequest = (id) => {
 }
 
 function authAccount(req, res, next) {
-  const id = verifySession(parseCookie(req.headers.cookie))
+  const token = parseCookie(req.headers.cookie)
+  const id = verifySession(token)
   const user = id && db.prepare('SELECT id,email,username,display_name,role,must_change_password,auth_user_id FROM users WHERE id=?').get(id)
   if (!user) return fail(res, 401, 'Connectez-vous pour continuer.')
+  user.account_role = user.role
+  const selectedRole = sessionRole(token)
+  user.role = selectedRole === 'gm' && user.account_role !== 'gm' ? 'player' : selectedRole || user.role
   req.user = user
   next()
 }
@@ -251,10 +262,6 @@ app.post('/api/auth/login', async (req, res) => {
     if (!identity) return fail(res, 401, 'La session Supabase a expiré. Connecte-toi à nouveau.')
     user = db.prepare('SELECT * FROM users WHERE auth_user_id=?').get(identity.id)
     const requestedRole = req.body?.role
-    const registeredRole = identity.user_metadata?.role
-    if (['gm', 'player'].includes(requestedRole) && ['gm', 'player'].includes(registeredRole) && requestedRole !== registeredRole) {
-      return fail(res, 403, requestedRole === 'gm' ? 'Ce compte est un compte joueur. Choisis le parcours Joueur.' : 'Ce compte est un compte MJ. Choisis le parcours MJ.')
-    }
     if (!user) {
       const localEmail = db.prepare('SELECT * FROM users WHERE lower(email)=lower(?)').get(identity.email)
       if (localEmail?.auth_user_id && localEmail.auth_user_id !== identity.id) {
@@ -290,8 +297,16 @@ app.post('/api/auth/login', async (req, res) => {
     user = db.prepare('SELECT * FROM users WHERE auth_user_id IS NULL AND (lower(email)=lower(?) OR username=? COLLATE NOCASE)').get(identifier, identifier)
     if (!user || typeof req.body?.password !== 'string' || !(await bcrypt.compare(req.body.password, user.password_hash))) return fail(res, 401, 'Identifiant ou mot de passe incorrect.')
   }
-  res.setHeader('Set-Cookie', sessionCookie(signSession(user.id), req.secure))
+  res.setHeader('Set-Cookie', sessionCookie(signSession(user.id, user.role), req.secure))
   res.json({ user: publicUser(user), campaign: campaignInfo(startupCampaign(user.id), user.id) })
+})
+app.post('/api/auth/mode', authAccount, (req, res) => {
+  const role = req.body?.role
+  if (!['gm', 'player'].includes(role)) return fail(res, 400, 'Choisis le mode Maître du Jeu ou joueur.')
+  if (role === 'gm' && req.user.account_role !== 'gm') return fail(res, 403, 'Ce compte ne possède pas les droits Maître du Jeu.')
+  req.user.role = role
+  res.setHeader('Set-Cookie', sessionCookie(signSession(req.user.id, role), req.secure))
+  res.json({ user: publicUser(req.user), campaign: campaignInfo(startupCampaign(req.user.id), req.user.id) })
 })
 app.post('/api/auth/link-supabase', authAccount, async (req, res) => {
   if (req.user.must_change_password) return fail(res, 428, 'Changez votre mot de passe avant de lier Supabase.')
@@ -308,6 +323,7 @@ app.post('/api/auth/link-supabase', authAccount, async (req, res) => {
   try {
     db.prepare('UPDATE users SET auth_user_id=?,email=?,must_change_password=0 WHERE id=?').run(identity.id, identity.email.toLowerCase(), req.user.id)
     const user = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.id)
+    user.account_role = user.role; user.role = req.user.role
     res.json({ user: publicUser(user), campaign: campaignInfo(startupCampaign(req.user.id), req.user.id) })
   } catch (error) {
     fail(res, error.code === 'SQLITE_CONSTRAINT_UNIQUE' ? 409 : 500, error.code === 'SQLITE_CONSTRAINT_UNIQUE' ? 'Ce compte Supabase ou cette adresse e-mail est déjà lié.' : 'Impossible de lier le compte Supabase.')
@@ -357,6 +373,7 @@ app.patch('/api/account', authAccount, async (req, res) => {
       must_change_password=CASE WHEN ? IS NULL THEN must_change_password ELSE 0 END WHERE id=?`)
       .run(username, displayName, hash, hash, req.user.id)
     const updated = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.id)
+    updated.account_role = updated.role; updated.role = req.user.role
     res.json({ user: publicUser(updated), campaign: campaignInfo(startupCampaign(req.user.id), req.user.id) })
   } catch (error) { fail(res, error.code === 'SQLITE_CONSTRAINT_UNIQUE' ? 409 : 500, error.code === 'SQLITE_CONSTRAINT_UNIQUE' ? 'Ce pseudo est déjà utilisé.' : 'Impossible de modifier le compte.') }
 })
@@ -417,11 +434,13 @@ app.patch('/api/campaign', authUser, requireGM, async (req, res) => {
   if (typeof req.body?.isOpen !== 'boolean') return fail(res, 400, 'État de session invalide.')
   const joinPassword = req.body?.joinPassword
   const status = req.body?.status ?? req.campaign.status ?? 'active'
+  const criticalMode = req.body?.criticalMode ?? req.campaign.critical_mode ?? 'positive'
   if (!['active', 'paused', 'stopped'].includes(status)) return fail(res, 400, 'État de campagne invalide.')
+  if (!['positive', 'negative'].includes(criticalMode)) return fail(res, 400, 'Règle de critique invalide.')
   if (joinPassword != null && joinPassword !== '' && (typeof joinPassword !== 'string' || joinPassword.length < 8 || joinPassword.length > 200)) return fail(res, 400, 'Le mot de passe de partie doit contenir au moins 8 caractères.')
   const hash = typeof joinPassword === 'string' && joinPassword ? await bcrypt.hash(joinPassword, 12) : null
-  db.prepare("UPDATE campaigns SET name=?,is_open=?,status=?,join_password_hash=COALESCE(?,join_password_hash) WHERE id=?")
-    .run(name, status === 'stopped' ? 0 : req.body.isOpen ? 1 : 0, status, hash, req.campaign.id)
+  db.prepare("UPDATE campaigns SET name=?,is_open=?,status=?,join_password_hash=COALESCE(?,join_password_hash),critical_mode=? WHERE id=?")
+    .run(name, status === 'stopped' ? 0 : req.body.isOpen ? 1 : 0, status, hash, criticalMode, req.campaign.id)
   const campaign = db.prepare('SELECT * FROM campaigns WHERE id=?').get(req.campaign.id)
   emitCampaign(campaign.id, 'campaign:updated', campaignInfo(campaign, req.user.id))
   res.json(campaignInfo(campaign, req.user.id))
@@ -617,7 +636,7 @@ app.post('/api/game-images/:id/tokens', authUser, requireGM, (req, res) => {
   if (!integer(imageId, 1, Number.MAX_SAFE_INTEGER) || !db.prepare('SELECT 1 FROM game_images WHERE id=? AND campaign_id=?').get(imageId, req.campaign.id)) return fail(res, 404, 'Image introuvable.')
   if (!name || typeof color !== 'string' || !/^#[\da-f]{6}$/i.test(color) || !Number.isFinite(x) || x < 0 || x > 1 || !Number.isFinite(y) || y < 0 || y > 1 || !Array.isArray(assignedUserIds) || assignedUserIds.length > 20 || assignedUserIds.some((id) => !integer(id, 1, Number.MAX_SAFE_INTEGER) || !member(req.campaign.id, id))) return fail(res, 400, 'Les réglages du jeton sont invalides.')
   const ids = [...new Set(assignedUserIds)]
-  if (ids.some((id) => db.prepare("SELECT role FROM users WHERE id=?").get(id)?.role !== 'player')) return fail(res, 400, 'Un jeton ne peut être attribué qu’à des joueurs de cette campagne.')
+  if (ids.some((id) => roleFor(id, req.user) !== 'player')) return fail(res, 400, 'Un jeton ne peut être attribué qu’à des joueurs de cette campagne.')
   const result = db.prepare('INSERT INTO game_tokens(campaign_id,image_id,name,color,x,y,assigned_user_ids) VALUES(?,?,?,?,?,?,?)').run(req.campaign.id, imageId, name, color, x, y, json(ids))
   const token = gameTokenInfo(db.prepare('SELECT * FROM game_tokens WHERE id=?').get(result.lastInsertRowid))
   emitCampaign(req.campaign.id, 'game:overlay:updated', { campaignId: req.campaign.id, imageId })
@@ -641,7 +660,7 @@ app.patch('/api/game-tokens/:id', authUser, (req, res) => {
     const userIds = req.body?.assignedUserIds === undefined ? assignments : req.body.assignedUserIds
     if (!name || typeof color !== 'string' || !/^#[\da-f]{6}$/i.test(color) || !Array.isArray(userIds) || userIds.length > 20 || userIds.some((id) => !integer(id, 1, Number.MAX_SAFE_INTEGER) || !member(req.campaign.id, id))) return fail(res, 400, 'Les réglages du jeton sont invalides.')
     const ids = [...new Set(userIds)]
-    if (ids.some((id) => db.prepare("SELECT role FROM users WHERE id=?").get(id)?.role !== 'player')) return fail(res, 400, 'Un jeton ne peut être attribué qu’à des joueurs de cette campagne.')
+    if (ids.some((id) => roleFor(id, req.user) !== 'player')) return fail(res, 400, 'Un jeton ne peut être attribué qu’à des joueurs de cette campagne.')
     db.prepare('UPDATE game_tokens SET name=?,color=?,x=?,y=?,assigned_user_ids=? WHERE id=?').run(name, color, x, y, json(ids), tokenId)
   } else db.prepare('UPDATE game_tokens SET x=?,y=? WHERE id=?').run(x, y, tokenId)
   emitCampaign(req.campaign.id, 'game:overlay:updated', { campaignId: req.campaign.id, imageId: token.image_id })
@@ -657,30 +676,30 @@ app.delete('/api/game-tokens/:id', authUser, requireGM, (req, res) => {
 })
 server.on('close', stopPublicTunnel)
 app.get('/api/members', authUser, (req, res) => {
-  const rows = db.prepare(`SELECT u.id,u.display_name,u.role,ch.id AS character_id,ch.name AS character_name
+  const rows = db.prepare(`SELECT u.id,u.display_name,CASE WHEN u.id=? THEN ? ELSE u.role END AS role,ch.id AS character_id,ch.name AS character_name
     FROM campaign_members m JOIN users u ON u.id=m.user_id
     LEFT JOIN character_selections s ON s.campaign_id=m.campaign_id AND s.user_id=m.user_id
     LEFT JOIN characters ch ON ch.id=s.character_id
-    WHERE m.campaign_id=? ORDER BY u.role DESC,u.display_name`).all(req.campaign.id)
+    WHERE m.campaign_id=? ORDER BY role DESC,u.display_name`).all(req.user.id, req.user.role, req.campaign.id)
   res.json(rows.map((row) => ({ id: row.id, displayName: row.display_name, role: row.role, online: (online.get(row.id) || 0) > 0, characterId: row.character_id, characterName: row.character_name })))
 })
 
 app.get('/api/characters', authUser, (req, res) => {
   const rows = canManageCampaign(req.user, req.campaign)
     ? db.prepare('SELECT * FROM characters WHERE campaign_id=? ORDER BY name').all(req.campaign.id)
-    : db.prepare('SELECT * FROM characters WHERE campaign_id=? AND owner_id=?').all(req.campaign.id, req.user.id)
+    : db.prepare("SELECT * FROM characters WHERE campaign_id=? AND owner_id=? AND kind IN ('player','companion')").all(req.campaign.id, req.user.id)
   res.json(rows.map(characterInfo))
 })
 app.get('/api/active-character', authUser, (req, res) => {
   const selection = db.prepare(`SELECT c.* FROM character_selections s JOIN characters c ON c.id=s.character_id
     WHERE s.campaign_id=? AND s.user_id=?`).get(req.campaign.id, req.user.id)
-  res.json(selection ? characterInfo(selection) : null)
+  res.json(selection && (req.user.role === 'gm' || ['player', 'companion'].includes(selection.kind)) ? characterInfo(selection) : null)
 })
 app.post('/api/active-character', authUser, (req, res) => {
   const characterId = Number(req.body?.characterId)
   const character = db.prepare('SELECT * FROM characters WHERE id=? AND campaign_id=? AND owner_id=?')
     .get(characterId, req.campaign.id, req.user.id)
-  if (!character) return fail(res, 404, 'Choisissez un de vos personnages dans cette campagne.')
+  if (!character || (req.user.role === 'player' && !['player', 'companion'].includes(character.kind))) return fail(res, 404, 'Choisissez un de vos personnages dans cette campagne.')
   db.prepare(`INSERT INTO character_selections(campaign_id,user_id,character_id) VALUES(?,?,?)
     ON CONFLICT(campaign_id,user_id) DO UPDATE SET character_id=excluded.character_id`)
     .run(req.campaign.id, req.user.id, character.id)
@@ -701,7 +720,7 @@ app.post('/api/characters', authUser, (req, res) => {
   const ownerId = gm && kind === 'companion' ? Number(body.ownerId) : req.user.id
   if (gm && kind === 'companion') {
     const assignedPlayer = db.prepare(`SELECT 1 FROM campaign_members m JOIN users u ON u.id=m.user_id
-      WHERE m.campaign_id=? AND m.user_id=? AND u.role='player'`).get(req.campaign.id, ownerId)
+      WHERE m.campaign_id=? AND m.user_id=? AND (u.role='player' OR (u.id=? AND ?='player'))`).get(req.campaign.id, ownerId, req.user.id, req.user.role)
     if (!assignedPlayer) return fail(res, 400, 'Attribuez le compagnon à un joueur de cette campagne.')
   }
   const ownerCount = db.prepare('SELECT COUNT(*) AS total FROM characters WHERE campaign_id=? AND owner_id=?').get(req.campaign.id, ownerId).total
@@ -806,7 +825,7 @@ app.post('/api/requests', authUser, requireActiveCampaign, requireGM, (req, res)
   if (!integer(difficulty, -1000, 1000)) return fail(res, 400, 'Difficulté invalide (de -1 000 à 1 000).')
   if (![0, 1, 2, 3].includes(statBonus)) return fail(res, 400, 'Le bonus doit être +0, +1, +2 ou +3.')
   if (!integer(circumstance, -1000, 1000)) return fail(res, 400, 'Modificateur circonstanciel invalide.')
-  if (!targetGroup && (!integer(targetUserId, 1, Number.MAX_SAFE_INTEGER) || !member(req.campaign.id, targetUserId) || db.prepare('SELECT role FROM users WHERE id=?').get(targetUserId)?.role !== 'player')) return fail(res, 400, 'Choisissez un joueur de cette campagne.')
+  if (!targetGroup && (!integer(targetUserId, 1, Number.MAX_SAFE_INTEGER) || !member(req.campaign.id, targetUserId) || roleFor(targetUserId, req.user) !== 'player')) return fail(res, 400, 'Choisissez un joueur de cette campagne.')
   let characterId = null
   if (body.characterId !== undefined && body.characterId !== null && body.characterId !== '') {
     characterId = Number(body.characterId)
@@ -841,7 +860,7 @@ app.post('/api/requests/:id/resolve', authUser, requireActiveCampaign, (req, res
     if (!character || !canReadCharacter(req.user, req.campaign, character)) return fail(res, 403, 'Cette requête ne concerne pas votre personnage.')
   }
   const natural = crypto.randomInt(1, 21)
-  const { total, verdict } = resolveCheck({ natural, statBonus: current.stat_bonus, circumstance: current.circumstance, difficulty: current.difficulty })
+  const { total, verdict } = resolveCheck({ natural, statBonus: current.stat_bonus, circumstance: current.circumstance, difficulty: current.difficulty, criticalMode: req.campaign.critical_mode })
   const character = current.character_id ? db.prepare('SELECT * FROM characters WHERE id=?').get(current.character_id) : null
   const detail = { natural, stat: current.stat, statBonus: current.stat_bonus, circumstance: current.circumstance, difficulty: current.difficulty, verdict, action: current.action }
   const transaction = db.transaction(() => {
@@ -877,10 +896,13 @@ app.use((error, _req, res, _next) => {
 
 const online = new Map()
 io.use((socket, next) => {
-  const userId = verifySession(parseCookie(socket.handshake.headers.cookie))
+  const token = parseCookie(socket.handshake.headers.cookie)
+  const userId = verifySession(token)
   const user = userId && db.prepare('SELECT id,email,display_name,role FROM users WHERE id=?').get(userId)
   const campaign = user && oneCampaign(user.id)
   if (!user || !campaign) return next(new Error('unauthorized'))
+  const selectedRole = sessionRole(token)
+  user.role = selectedRole === 'gm' && user.role !== 'gm' ? 'player' : selectedRole || user.role
   socket.data.user = user
   socket.data.campaign = campaign
   next()

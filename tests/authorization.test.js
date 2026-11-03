@@ -234,4 +234,3 @@ test('le MJ peut créer, sélectionner, mettre en pause, arrêter et reprendre s
   assert.equal(resumed.data.status, 'active')
   assert.equal((await call('/api/campaigns', { cookie: gmCookie })).data.some((item) => item.id === secondCampaign.id), true)
 })
-
