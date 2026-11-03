@@ -223,6 +223,7 @@ function WelcomeFlow({ onAuthenticated, initialRole = null }: { onAuthenticated:
   const [lobbySearch, setLobbySearch] = useState('')
   const [register, setRegister] = useState(false)
   const [error, setError] = useState('')
+  const [info, setInfo] = useState('')
   const [busy, setBusy] = useState(false)
   async function refreshLobbies() {
     setBusy(true); setError('')
@@ -237,7 +238,7 @@ function WelcomeFlow({ onAuthenticated, initialRole = null }: { onAuthenticated:
   useEffect(() => { if (inviteGameId) void refreshLobbies() }, [])
   const visibleLobbies = lobbies.filter((lobby) => `${lobby.gameId} ${lobby.name} ${lobby.hostName}`.toLowerCase().includes(lobbySearch.toLowerCase().trim()))
   async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setError(''); setBusy(true)
+    event.preventDefault(); setError(''); setInfo(''); setBusy(true)
     const form = new FormData(event.currentTarget)
     const values = Object.fromEntries(form.entries())
     try {
@@ -254,7 +255,8 @@ function WelcomeFlow({ onAuthenticated, initialRole = null }: { onAuthenticated:
         if (signUpError) throw new Error(signUpError.message)
         if (!signedUp.session) {
           setRegister(false)
-          throw new Error(`Compte ${role === 'gm' ? 'MJ' : 'joueur'} créé. Confirme ton adresse e-mail, puis connecte-toi pour terminer la création du profil.`)
+          setInfo(`Compte ${role === 'gm' ? 'MJ' : 'joueur'} créé. Confirme ton adresse e-mail, puis connecte-toi pour terminer la création du profil.`)
+          return
         }
         accessToken = signedUp.session.access_token
         data = await api<SessionData>('/api/auth/register', { method: 'POST', body: JSON.stringify({
@@ -297,7 +299,7 @@ function WelcomeFlow({ onAuthenticated, initialRole = null }: { onAuthenticated:
       {!register && <label>Adresse e-mail ou ancien pseudo<input name="identifier" placeholder={role === 'gm' ? 'Yuta ou toi@exemple.fr' : 'toi@exemple.fr'} required autoComplete="username"/></label>}
        {role === 'player' && selectedLobby && !socialInvitationId && <label>Mot de passe de la partie<input name="joinPassword" type="password" minLength={8} maxLength={200} placeholder="Mot de passe transmis par le MJ" required autoComplete="off"/></label>}
       <label>Mot de passe<input name="password" type="password" minLength={register ? 10 : 1} placeholder={register ? '10 caractères minimum' : 'Mot de passe'} required autoComplete={register ? 'new-password' : 'current-password'}/></label>
-      {error && <div className="form-error">{error}</div>}<button className="button-primary auth-submit" disabled={busy}>{busy ? 'Patiente…' : register ? selectedLobby ? 'Créer le compte et rejoindre' : `Créer mon compte ${role === 'gm' ? 'MJ' : 'joueur'}` : selectedLobby ? 'Se connecter et rejoindre' : 'Se connecter'} <ArrowUpRight size={16}/></button></form>
+      {info && <div className="form-info" role="status"><CircleHelp size={15}/><span>{info}</span></div>}{error && <div className="form-error">{error}</div>}<button className="button-primary auth-submit" disabled={busy}>{busy ? 'Patiente…' : register ? selectedLobby ? 'Créer le compte et rejoindre' : `Créer mon compte ${role === 'gm' ? 'MJ' : 'joueur'}` : selectedLobby ? 'Se connecter et rejoindre' : 'Se connecter'} <ArrowUpRight size={16}/></button></form>
       <button className="text-link" onClick={() => { setRegister(!register); setError('') }}>{register ? `J’ai déjà un compte ${role === 'gm' ? 'MJ' : 'joueur'}` : `Créer un compte ${role === 'gm' ? 'MJ' : 'joueur'}`}</button>
       <div className="role-footer"><Shield size={14}/> {role === 'gm' ? 'Les réglages privés restent visibles uniquement par le MJ.' : 'Après connexion, tu pourras créer ou choisir ton personnage.'}</div></section>}
   </div><div className="welcome-bottom"><span>✦</span> DES HÉROS ORDINAIRES, DES AVENTURES EXTRAORDINAIRES <span>✦</span></div></div>
@@ -1097,3 +1099,4 @@ function FriendsView({ user, campaign, onGoSettings, onToast }: {
     </>}
   </>
 }
+

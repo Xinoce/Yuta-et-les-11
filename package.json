@@ -1,6 +1,6 @@
 {
   "name": "yuta-et-les-11",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "private": true,
   "type": "module",
   "description": "La table de jeu multijoueur de Yuta et les 11.",
@@ -98,3 +98,4 @@
     "vite": "^6.0.7"
   }
 }
+

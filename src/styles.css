@@ -6,4 +6,5 @@
 @media(max-width:390px){.overview-card{gap:5px;padding:8px 6px}.overview-icon{width:24px;height:24px}.overview-card>div:nth-child(2)>span{font-size:6px}.overview-card strong{font-size:16px}.overview-card strong small{font-size:7px}.roll-mark{width:25px;height:25px}.roll-info small{max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.roll-result{flex-direction:column;gap:0}.roll-result>span{display:none}.request-pair{grid-template-columns:1fr}.identity-grid{grid-template-columns:1fr 1fr}}
 
 @media(max-width:720px){.side-nav{grid-template-columns:repeat(6,minmax(0,1fr))}}
+.form-info{display:flex;align-items:flex-start;gap:8px;padding:11px 12px;color:#b7dfff;background:#17344b88;border:1px solid #4f91c477;border-radius:3px;font-size:11px;line-height:1.55}.form-info svg{color:#7fc3f4;flex:none;margin-top:1px}
 

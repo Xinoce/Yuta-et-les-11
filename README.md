@@ -4,7 +4,7 @@ Application multijoueur en français pour jouer à **Yuta et les 11**. L’inter
 
 ## Installer et démarrer sous Windows
 
-Téléchargez puis lancez `release\Yuta-et-les-11-Setup-0.1.17.exe`. L’application s’ouvre dans sa propre fenêtre avec son icône personnalisée, sans exiger que Node.js soit installé sur le PC de jeu. Un raccourci est ajouté au bureau et au menu Démarrer. Les sauvegardes sont conservées dans les données utilisateur Windows de l’application.
+Téléchargez puis lancez `release\Yuta-et-les-11-Setup-0.1.18.exe`. L’application s’ouvre dans sa propre fenêtre avec son icône personnalisée, sans exiger que Node.js soit installé sur le PC de jeu. Un raccourci est ajouté au bureau et au menu Démarrer. Les sauvegardes sont conservées dans les données utilisateur Windows de l’application.
 
 À partir de la 0.1.7, l’application vérifie les mises à jour au démarrage et les télécharge en arrière-plan. Depuis **Réglages → Mises à jour**, on peut aussi lancer une recherche manuelle et installer une mise à jour prête au moment choisi ; l’installation demande de redémarrer l’application.
 
@@ -51,7 +51,7 @@ npm install
 npm run package:win
 ```
 
-Le fichier généré se trouve dans `release\Yuta-et-les-11-Setup-0.1.17.exe`.
+Le fichier généré se trouve dans `release\Yuta-et-les-11-Setup-0.1.18.exe`.
 
 ## Publier une mise à jour
 
@@ -76,6 +76,7 @@ Le dépôt public [Xinoce/Yuta-et-les-11](https://github.com/Xinoce/Yuta-et-les-
 npm test
 npm run build
 ```
+
 
 
 
