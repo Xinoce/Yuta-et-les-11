@@ -705,10 +705,93 @@ html:has(.welcome-screen),body:has(.welcome-screen),#root:has(.welcome-screen) {
   .mode-image-button:hover:not(:disabled),.mode-image-button:focus-visible:not(:disabled) { transform: none; }
 }
 
-/* Une fenêtre paysage étroite reste en disposition bureau, même avec une
-   mise à l’échelle Windows élevée (petit viewport CSS sur un écran 1080p). */
-@media (max-width: 900px) and (min-aspect-ratio: 4/3) {
-  .welcome-screen { height: 100dvh; overflow: hidden; padding: 0; }
-  .welcome-body { position: absolute; inset: 0; display: block; width: 100%; height: 100%; min-height: 0; padding: 0; }
-  .role-card.auth-card { position: absolute; top: 50%; right: 16px; left: auto; width: min(42vw,520px,calc(91.46dvh - 24px)); max-height: calc(100dvh - 24px); transform: translateY(-50%); }
+/* Disposition responsive partagée pour connexion, inscription et lobby. */
+.welcome-screen {
+  --login-panel-max-width: 420px;
+  --login-panel-gutter: clamp(20px,4vw,80px);
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  max-width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0;
+}
+.welcome-body {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  pointer-events: none;
+}
+.role-card.auth-card {
+  position: relative;
+  inset: auto;
+  top: auto;
+  right: auto;
+  left: auto;
+  flex: 0 1 auto;
+  box-sizing: border-box;
+  width: min(var(--login-panel-max-width),calc(100vw - 40px),calc(91.46dvh - 36.6px));
+  max-width: 100%;
+  max-height: calc(100dvh - 40px);
+  aspect-ratio: 1199 / 1312;
+  overflow: visible;
+  margin: 0 var(--login-panel-gutter) 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  transform: none;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  pointer-events: auto;
+}
+
+/* Sur tablette, le panneau reste à droite mais se resserre. */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .welcome-body { padding-inline: 24px; }
+  .role-card.auth-card {
+    --login-panel-max-width: 380px;
+    margin-right: 0;
+  }
+}
+
+/* Sur petit écran, le panneau est centré et la page peut défiler en hauteur. */
+@media (max-width: 767px) {
+  .welcome-screen { overflow-y: auto; }
+  .welcome-body {
+    position: relative;
+    inset: auto;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 20px;
+    overflow: visible;
+  }
+  .role-card.auth-card {
+    flex: none;
+    width: min(var(--login-panel-max-width),calc(100vw - 40px));
+    max-height: none;
+    margin: 0;
+    transform: none;
+  }
 }
