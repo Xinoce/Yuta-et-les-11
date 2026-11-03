@@ -4,7 +4,7 @@ import { supabase } from './supabase'
 import {
   Activity, ArrowLeft, ArrowUpRight, BookOpen, Check, ChevronDown, ChevronRight, CircleHelp, Copy,
   ClipboardList, Coins, Compass, Dices, DoorOpen, Eye, EyeOff, Feather, Gamepad2, Globe2, Heart, Image as ImageIcon, LogOut,
-  LockKeyhole, Mail, MessageCircle, MonitorPlay, Plus, RefreshCw, ScrollText, Send, Settings, Shield, Sparkles, Swords, Trash2, TreePine, Upload, Users, X,
+  Home, LockKeyhole, Mail, MessageCircle, MonitorPlay, Plus, RefreshCw, ScrollText, Send, Settings, Shield, Sparkles, Swords, Trash2, TreePine, Upload, Users, X,
 } from 'lucide-react'
 
 type User = { id: number; email: string; username: string; displayName: string; role: 'gm' | 'player'; canGM?: boolean; mustChangePassword: boolean; authLinked: boolean }
@@ -39,7 +39,7 @@ type RollRequest = {
   circumstance: number; context: string; expires_at: string | null; status: string; created_at: string;
   result: { detail: Roll['detail']; total: number; dice: number[]; player: string } | null;
 }
-type View = 'game' | 'table' | 'character' | 'requests' | 'players' | 'friends' | 'settings' | 'selectCharacter'
+type View = 'home' | 'game' | 'table' | 'character' | 'requests' | 'players' | 'friends' | 'settings' | 'selectCharacter'
 
 const STAT_LIST = ['Force', 'Constitution', 'Agilité', 'Magie', 'Perception', 'Intelligence', 'Charisme']
 const BONUS_POOL = [3, 2, 1, 1, 0, 0, 0]
@@ -119,7 +119,7 @@ const criticalRuleDescription = (mode: Campaign['criticalMode']) => mode === 'ne
 export default function App() {
   const [session, setSession] = useState<SessionData | null>(null)
   const [initializing, setInitializing] = useState(true)
-  const [view, setView] = useState<View>('table')
+  const [view, setView] = useState<View>('home')
   const [viewHistory, setViewHistory] = useState<View[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [characters, setCharacters] = useState<Character[]>([])
@@ -150,7 +150,7 @@ export default function App() {
     api<SessionData>('/api/me').then((data) => {
       setSession(data)
       setCampaignHome(data.user.role === 'gm' && (!data.campaign || data.campaign.status !== 'active'))
-      setView(data.user.mustChangePassword ? 'settings' : data.user.role === 'player' ? 'selectCharacter' : 'game')
+      setView(data.user.mustChangePassword ? 'settings' : data.user.role === 'player' ? data.campaign ? 'selectCharacter' : 'home' : 'home')
     }).catch(() => undefined).finally(() => setInitializing(false))
   }, [])
   useEffect(() => { if (session) refresh().catch((error) => setToast(error.message)) }, [session, refresh])
@@ -180,14 +180,14 @@ export default function App() {
     setSession(data); setLoadingData(true); setCreatingCharacter(false)
     setViewHistory([])
     setCampaignHome(data.user.role === 'gm' && (!data.campaign || data.campaign.status !== 'active'))
-    setView(data.user.mustChangePassword ? 'settings' : data.user.role === 'player' ? 'selectCharacter' : data.campaign ? 'game' : 'settings')
+    setView(data.user.mustChangePassword ? 'settings' : data.user.role === 'player' ? data.campaign ? 'selectCharacter' : 'home' : data.campaign ? 'home' : 'settings')
   }
   const onCampaignSelected = (campaign: Campaign) => {
     setCampaignHome(false)
     setViewHistory([])
     setSession((current) => current ? { ...current, campaign } : current)
     setMembers([]); setCharacters([]); setActiveCharacter(null); setRolls([]); setRequests([]); setLoadingData(true); setCreatingCharacter(false)
-    setView(session?.user.role === 'player' ? 'selectCharacter' : 'game')
+    setView(session?.user.role === 'player' ? 'selectCharacter' : 'home')
   }
   const signOut = async () => {
     try { await api('/api/auth/logout', { method: 'POST' }) } catch { /* Clear the local session even when the server is offline. */ }
@@ -209,15 +209,39 @@ export default function App() {
 
   if (initializing) return <div className="loading-screen"><div className="sigil"><Sparkles /></div><p>La table s’éveille…</p></div>
   if (!session) return <WelcomeFlow onAuthenticated={signIn} />
-  if (session.user.mustChangePassword) return <><MainMenuActions onMenu={signOut} onSignOut={signOut}/><SettingsView user={session.user} campaign={session.campaign} forced onUserUpdated={(user, campaign) => { setSession({ user, campaign }); setCampaignHome(user.role === 'gm' && (!campaign || campaign.status !== 'active')); setViewHistory([]); setView(user.role === 'gm' && !campaign ? 'settings' : user.role === 'player' ? 'selectCharacter' : 'game') }} onCampaignSelected={onCampaignSelected} onCampaignDeleted={() => undefined} onToast={setToast} /></>
-  if (!session.campaign || campaignHome) return session.user.role === 'gm'
-    ? <><MainMenuActions onMenu={signOut} onSignOut={signOut}/><CampaignCreateScreen user={session.user} onSelected={onCampaignSelected} onCreated={(campaign, joinPassword) => { setCampaignHome(false); setSession((current) => current ? { ...current, campaign } : current); setLastJoinPassword(joinPassword); setViewHistory([]); setView('game') }} /></>
-    : <PlayerSocialHome user={session.user} page={view === 'settings' ? 'settings' : 'friends'} onPage={(next) => setView(next)} onSignOut={() => void signOut()} onUserUpdated={(user, campaign) => setSession({ user, campaign })} onToast={setToast} />
+  if (session.user.mustChangePassword) return <><MainMenuActions onMenu={signOut} onSignOut={signOut}/><SettingsView user={session.user} campaign={session.campaign} forced onUserUpdated={(user, campaign) => { setSession({ user, campaign }); setCampaignHome(user.role === 'gm' && (!campaign || campaign.status !== 'active')); setViewHistory([]); setView(user.role === 'gm' && !campaign ? 'settings' : user.role === 'player' ? campaign ? 'selectCharacter' : 'home' : 'home') }} onCampaignSelected={onCampaignSelected} onCampaignDeleted={() => undefined} onToast={setToast} /></>
+  if (!session.campaign || campaignHome) {
+    if (session.user.role === 'gm') return <><MainMenuActions onMenu={signOut} onSignOut={signOut}/><CampaignCreateScreen user={session.user} onSelected={onCampaignSelected} onCreated={(campaign, joinPassword) => { setCampaignHome(false); setSession((current) => current ? { ...current, campaign } : current); setLastJoinPassword(joinPassword); setViewHistory([]); setView('home') }} /></>
+    if (!session.campaign && view === 'home') return <DashboardHome
+      user={session.user} campaign={null} character={null} members={[]} friendsReady={session.user.authLinked}
+      gameImages={[]} rolls={[]} socketConnected={false}
+      onNavigate={(next) => { if (next === 'home' || next === 'friends' || next === 'settings') navigateTo(next); else setToast('Rejoins une campagne pour accéder à cette rubrique.') }}
+      onSignOut={() => void signOut()} onRoll={() => undefined} notify={setToast} toast={toast} clearToast={() => setToast('')}
+    />
+    return <PlayerSocialHome user={session.user} page={view === 'settings' ? 'settings' : view === 'friends' ? 'friends' : 'home'} onPage={(next) => setView(next)} onSignOut={() => void signOut()} onUserUpdated={(user, campaign) => { setSession({ user, campaign }); setView(campaign ? 'selectCharacter' : 'home') }} onToast={setToast} />
+  }
 
   const isGM = session.user.role === 'gm'
   const ownCharacter = activeCharacter
   const pending = requests.filter((request) => request.status === 'pending' && (isGM || request.target_user_id === session.user.id || request.target_group)).length
+  if (view === 'home') return <DashboardHome
+    user={session.user}
+    campaign={session.campaign}
+    character={ownCharacter}
+    members={members}
+    friendsReady={session.user.authLinked}
+    gameImages={gameImages}
+    rolls={rolls.slice(0, 12)}
+    socketConnected={Boolean(socket?.connected)}
+    onNavigate={navigateTo}
+    onSignOut={() => void signOut()}
+    onRoll={(payload) => api<Roll>('/api/rolls', { method: 'POST', body: JSON.stringify(payload) }).then(() => setToast('Lancer ajouté au journal partagé.')).catch((error) => setToast(error.message))}
+    notify={setToast}
+    toast={toast}
+    clearToast={() => setToast('')}
+  />
   const nav: { id: View; label: string; icon: typeof Dices; badge?: number }[] = [
+    { id: 'home', label: 'Accueil', icon: Home },
     { id: 'game', label: 'Game', icon: MonitorPlay },
     { id: 'table', label: 'La table', icon: Dices },
     { id: 'character', label: 'Personnage', icon: BookOpen },
@@ -240,11 +264,11 @@ export default function App() {
       {session.campaign.status !== 'active' && <div className={`campaign-state-banner ${session.campaign.status}`}>{session.campaign.status === 'paused' ? 'Campagne en pause : les lancers et les tests sont suspendus. Le MJ peut la reprendre dans Réglages.' : 'Campagne arrêtée : les lancers et les inscriptions sont suspendus. Le MJ peut la réactiver dans Réglages.'}</div>}
       <div className="page-content">
         {loadingData && <div className="loading-card"><div className="sigil"><Sparkles size={17}/></div><span>La partie se prépare…</span></div>}
-        {!loadingData && view === 'selectCharacter' && characters.length === 0 && <CharacterView user={session.user} characters={characters} members={members} forceNew onSaved={(character) => { setCharacters([character]); setActiveCharacter(character); setCreatingCharacter(false); navigateTo('game') }} onToast={setToast} />}
-        {!loadingData && view === 'selectCharacter' && characters.length > 0 && <CharacterPickerView characters={characters} activeCharacter={activeCharacter} onSelect={async (character) => { try { const chosen = await api<Character>('/api/active-character', { method: 'POST', body: JSON.stringify({ characterId: character.id }) }); setActiveCharacter(chosen); navigateTo('game') } catch (error) { setToast(error instanceof Error ? error.message : 'Choix impossible.') } }} onCreate={() => { setCreatingCharacter(true); navigateTo('character') }} />}
+        {!loadingData && view === 'selectCharacter' && characters.length === 0 && <CharacterView user={session.user} characters={characters} members={members} forceNew onSaved={(character) => { setCharacters([character]); setActiveCharacter(character); setCreatingCharacter(false); navigateTo('home') }} onToast={setToast} />}
+        {!loadingData && view === 'selectCharacter' && characters.length > 0 && <CharacterPickerView characters={characters} activeCharacter={activeCharacter} onSelect={async (character) => { try { const chosen = await api<Character>('/api/active-character', { method: 'POST', body: JSON.stringify({ characterId: character.id }) }); setActiveCharacter(chosen); navigateTo('home') } catch (error) { setToast(error instanceof Error ? error.message : 'Choix impossible.') } }} onCreate={() => { setCreatingCharacter(true); navigateTo('character') }} />}
         {!loadingData && view === 'game' && <GameView isGM={isGM} userId={session.user.id} members={members} overlayRevision={overlayRevision} campaignStatus={session.campaign.status} criticalMode={session.campaign.criticalMode} character={ownCharacter} images={gameImages} rolls={rolls.slice(0, 6)} onRoll={(payload) => api<Roll>('/api/rolls', { method: 'POST', body: JSON.stringify(payload) }).then(() => setToast('Lancer ajouté au journal de jeu.')).catch((e) => setToast(e.message))} onUpload={async (payload) => { const image = await api<GameImage>('/api/game-images', { method: 'POST', body: JSON.stringify(payload) }); setGameImages((current) => [image, ...current]); setToast('Image ajoutée à la galerie de campagne.') }} onShow={async (image, isShown) => { const updated = await api<GameImage>(`/api/game-images/${image.id}`, { method: 'PATCH', body: JSON.stringify({ isShown }) }); setGameImages((current) => current.map((item) => item.id === updated.id ? updated : { ...item, isShown: isShown ? false : item.isShown })); setToast(isShown ? 'Image affichée aux joueurs.' : 'Image retirée de l’écran des joueurs.') }} onDelete={async (image) => { await api(`/api/game-images/${image.id}`, { method: 'DELETE' }); setGameImages((current) => current.filter((item) => item.id !== image.id)); setToast('Image supprimée de la galerie.') }} />}
         {!loadingData && view === 'table' && <TableView session={{ ...session, campaign: session.campaign! }} isGM={isGM} ownCharacter={ownCharacter} members={members} rolls={rolls} requests={requests} onRoll={(payload) => api<Roll>('/api/rolls', { method: 'POST', body: JSON.stringify(payload) }).then(() => setToast('Lancer ajouté au journal partagé.')).catch((e) => setToast(e.message))} onResolve={(id) => api(`/api/requests/${id}/resolve`, { method: 'POST' }).then(() => setToast('Test résolu et partagé avec la table.')).catch((e) => setToast(e.message))} onGo={navigateTo} />}
-        {!loadingData && view === 'character' && <CharacterView user={session.user} characters={characters} members={members} activeCharacter={activeCharacter} forceNew={creatingCharacter} onCreateNew={() => setCreatingCharacter(true)} onCancelCreate={() => setCreatingCharacter(false)} onActiveCharacter={setActiveCharacter} onSaved={(character) => { setCharacters((current) => [character, ...current.filter((v) => v.id !== character.id)]); if (session.user.role === 'player') { setActiveCharacter(character); setCreatingCharacter(false); navigateTo('game') } else setCreatingCharacter(false) }} onToast={setToast} />}
+        {!loadingData && view === 'character' && <CharacterView user={session.user} characters={characters} members={members} activeCharacter={activeCharacter} forceNew={creatingCharacter} onCreateNew={() => setCreatingCharacter(true)} onCancelCreate={() => setCreatingCharacter(false)} onActiveCharacter={setActiveCharacter} onSaved={(character) => { setCharacters((current) => [character, ...current.filter((v) => v.id !== character.id)]); if (session.user.role === 'player') { setActiveCharacter(character); setCreatingCharacter(false); navigateTo('home') } else setCreatingCharacter(false) }} onToast={setToast} />}
         {view === 'requests' && <RequestsView isGM={isGM} campaignStatus={session.campaign.status} userId={session.user.id} members={members} characters={characters} requests={requests} onCreate={(payload) => api<RollRequest>('/api/requests', { method: 'POST', body: JSON.stringify(payload) }).then((request) => { setRequests((current) => [request, ...current.filter((v) => v.id !== request.id)]); setToast('La demande de test a été envoyée.') }).catch((e) => setToast(e.message))} onResolve={(id) => api(`/api/requests/${id}/resolve`, { method: 'POST' }).then(() => setToast('Test résolu et partagé avec la table.')).catch((e) => setToast(e.message))} onCancel={(id) => api<RollRequest>(`/api/requests/${id}/cancel`, { method: 'POST' }).then((request) => setRequests((current) => current.map((v) => v.id === id ? request : v))).catch((e) => setToast(e.message))} />}
         {!loadingData && view === 'players' && <PlayersView members={members} campaign={session.campaign} />}
         {view === 'friends' && <FriendsView user={session.user} campaign={session.campaign} onGoSettings={() => navigateTo('settings')} onToast={setToast} />}
@@ -254,6 +278,174 @@ export default function App() {
     {toast && <div className="toast"><Check size={16} />{toast}<button onClick={() => setToast('')} aria-label="Fermer"><X size={15} /></button></div>}
   </div>
 }
+
+function DashboardHome({ user, campaign, character, members, friendsReady, gameImages, rolls, socketConnected, onNavigate, onSignOut, onRoll, notify, toast, clearToast }: {
+  user: User; campaign: Campaign | null; character: Character | null; members: Member[]; friendsReady: boolean;
+  gameImages: GameImage[]; rolls: Roll[]; socketConnected: boolean; onNavigate: (view: View) => void;
+  onSignOut: () => void; onRoll: (payload: object) => void; notify: (message: string) => void; toast: string; clearToast: () => void;
+}) {
+  const [friends, setFriends] = useState<SocialProfile[]>([])
+  const [friendsLoading, setFriendsLoading] = useState(true)
+  const [friendsError, setFriendsError] = useState('')
+  const [diceSides, setDiceSides] = useState(20)
+  const [diceCount, setDiceCount] = useState(1)
+  const [rolling, setRolling] = useState(false)
+  const [avatarKey, setAvatarKey] = useState(`local:${user.id}`)
+  const [avatarSrc, setAvatarSrc] = useState('/profile-default.png')
+  const avatarInput = useRef<HTMLInputElement>(null)
+  const isGM = user.role === 'gm'
+  const social = supabase as any
+  const featuredImage = campaign ? isGM ? (gameImages.find((image) => image.isShown) || gameImages[0]) : gameImages.find((image) => image.isShown) : undefined
+  const onlineFriends = friends.filter((friend) => members.some((member) => member.online && member.displayName.toLocaleLowerCase() === friend.display_name.toLocaleLowerCase())).length
+
+  useEffect(() => {
+    let disposed = false
+    const load = async () => {
+      setFriendsLoading(true); setFriendsError('')
+      if (!friendsReady) { setFriends([]); setFriendsLoading(false); return }
+      try {
+        const { data: authData, error: authError } = await supabase.auth.getUser()
+        if (authError || !authData.user) throw new Error('Reconnecte le compte en ligne dans Réglages pour afficher tes amis.')
+        const uid = authData.user.id
+        const [{ error: syncError }, { data: links, error: linksError }] = await Promise.all([
+          social.rpc('sync_my_social_profile', { p_username: user.username, p_display_name: user.displayName }),
+          social.from('social_friendships').select('user_low,user_high').or(`user_low.eq.${uid},user_high.eq.${uid}`),
+        ])
+        if (syncError) throw syncError
+        if (linksError) throw linksError
+        const friendIds = ((links || []) as SocialFriendship[]).map((link) => link.user_low === uid ? link.user_high : link.user_low)
+        if (!friendIds.length) { if (!disposed) setFriends([]); return }
+        const { data, error: profilesError } = await social.from('social_profiles').select('user_id,public_id,username,display_name').in('user_id', friendIds)
+        if (profilesError) throw profilesError
+        if (!disposed) setFriends((data || []) as SocialProfile[])
+      } catch (cause) {
+        if (!disposed) setFriendsError(errorMessage(cause, 'Impossible de charger la liste d’amis.'))
+      } finally { if (!disposed) setFriendsLoading(false) }
+    }
+    void load()
+    const refresh = window.setInterval(() => { void load() }, 30000)
+    return () => { disposed = true; window.clearInterval(refresh) }
+  }, [friendsReady, user.id, user.username, user.displayName])
+
+  useEffect(() => {
+    let disposed = false
+    const loadAvatar = async () => {
+      let key = `local:${user.id}`
+      if (user.authLinked) {
+        try {
+          const { data } = await supabase.auth.getUser()
+          if (data.user?.id) key = data.user.id
+        } catch { /* The local account key remains available while Supabase is offline. */ }
+      }
+      if (disposed) return
+      setAvatarKey(key)
+      try { setAvatarSrc(localStorage.getItem(`yuta.profile-avatar.${key}`) || '/profile-default.png') }
+      catch { setAvatarSrc('/profile-default.png') }
+    }
+    void loadAvatar()
+    return () => { disposed = true }
+  }, [user.id, user.authLinked])
+
+  async function changeAvatar(file?: File) {
+    if (!file) return
+    if (!file.type.startsWith('image/')) { notify('Choisis un fichier image.'); return }
+    if (file.size > 20 * 1024 * 1024) { notify('L’image doit faire moins de 20 Mo.'); return }
+    try {
+      const image = await createImageBitmap(file)
+      const canvas = document.createElement('canvas')
+      const size = 384
+      canvas.width = size; canvas.height = size
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error('Impossible de préparer cette image.')
+      const scale = Math.max(size / image.width, size / image.height)
+      const width = image.width * scale; const height = image.height * scale
+      context.drawImage(image, (size - width) / 2, (size - height) / 2, width, height)
+      image.close()
+      const result = canvas.toDataURL('image/webp', 0.86)
+      localStorage.setItem(`yuta.profile-avatar.${avatarKey}`, result)
+      setAvatarSrc(result)
+      notify('Photo de profil mise à jour.')
+    } catch { notify('Cette image ne peut pas être utilisée. Essaie un fichier JPG ou PNG.') }
+  }
+
+  function rollDice() {
+    if (!campaign || campaign.status !== 'active' || rolling) return
+    setRolling(true)
+    onRoll({ count: diceCount, sides: diceSides, modifier: 0, characterId: character?.id ?? null })
+    window.setTimeout(() => setRolling(false), 650)
+  }
+
+  const categories: { label: string; target: View }[] = [
+    { label: 'Accueil', target: 'home' }, { label: 'Campagne', target: 'game' }, { label: 'Fiches', target: 'character' },
+    { label: 'Ressources', target: 'table' }, { label: 'Amis', target: 'friends' }, { label: 'Paramètres', target: 'settings' },
+  ]
+
+  return <div className={`home-screen ${isGM ? 'home-gm' : 'home-player'}`}>
+    <div className="home-artboard">
+    <button className="home-profile-picture" onClick={() => avatarInput.current?.click()} aria-label="Modifier la photo de profil" title="Cliquer pour changer ma photo de profil">
+      <img src={avatarSrc} alt={`Photo de profil de ${user.displayName}`} />
+    </button>
+    <img className="home-backdrop" src={isGM ? '/home-mj-bg.png' : '/home-player-bg.png'} alt="" />
+    <nav className="home-category-nav" aria-label="Menu principal">
+      {categories.map(({ label, target }) => <button key={target} className={target === 'home' ? 'home-category active' : 'home-category'} onClick={() => onNavigate(target)} aria-label={label} title={label}><span className="sr-only">{label}</span></button>)}
+    </nav>
+
+    <input ref={avatarInput} className="home-avatar-input" type="file" accept="image/*" onChange={(event) => { void changeAvatar(event.currentTarget.files?.[0]); event.currentTarget.value = '' }} />
+    <div className="home-profile-name" title={user.displayName}>{user.displayName}<small>{isGM ? 'Maître du Jeu' : character?.name || 'Joueur'}</small></div>
+    <section className="home-campaign-panel" aria-label="Campagne en cours">
+      <header className="home-panel-title"><span className="home-title-icon"><ScrollText size={18}/></span><h1>Campagne en cours</h1>{campaign && <span className={`home-campaign-state ${campaign.status}`}>{campaign.status === 'active' ? 'EN COURS' : campaign.status === 'paused' ? 'EN PAUSE' : 'ARRÊTÉE'}</span>}</header>
+      {campaign ? <div className={`home-campaign-feature ${featuredImage ? 'has-image' : ''}`}>
+        {featuredImage ? <img src={featuredImage.url} alt={featuredImage.name} /> : <div className="home-feature-placeholder"><Compass/><span>Le carnet de campagne</span></div>}
+        <div className="home-feature-shade" />
+        <div className="home-feature-copy"><h2>{campaign.name}</h2><p>{character ? `En route avec ${character.name}` : isGM ? 'Votre aventure vous attend.' : 'Choisis une fiche pour rejoindre l’aventure.'}</p></div>
+        <button className="home-resume-button" onClick={() => onNavigate('game')}><ArrowUpRight size={15}/><span>Reprendre</span></button>
+      </div> : <div className="home-no-campaign"><BookOpen size={27}/><strong>Aucune campagne en cours</strong><span>Tu pourras rejoindre une campagne depuis tes invitations, dans l’onglet Amis.</span></div>}
+    </section>
+
+    <section className="home-dice-panel" aria-label="Lancer de dés et historique">
+      <header className="home-panel-title"><span className="home-title-icon"><Dices size={18}/></span><h2>Lancer des dés</h2><span className="home-critical-rule">{campaign ? campaign.criticalMode === 'positive' ? '20 CRITIQUE' : '1 CRITIQUE' : 'CAMPAGNE REQUISE'}</span></header>
+      <div className="home-dice-options" role="group" aria-label="Choisir un dé">
+        {[4, 6, 8, 10, 12, 20, 100].map((sides) => <button key={sides} className={diceSides === sides ? 'home-die-option selected' : 'home-die-option'} onClick={() => setDiceSides(sides)} aria-pressed={diceSides === sides}><span className="home-die-glyph">{sides === 20 ? '◇' : sides === 4 ? '△' : sides === 6 ? '⬡' : '✧'}</span><small>D{sides}</small></button>)}
+      </div>
+      <div className="home-dice-actions">
+        <div className="home-dice-count"><span>Nombre :</span><button aria-label="Retirer un dé" onClick={() => setDiceCount((count) => Math.max(1, count - 1))}>−</button><strong>{diceCount}</strong><button aria-label="Ajouter un dé" onClick={() => setDiceCount((count) => Math.min(20, count + 1))}>＋</button></div>
+        <button className={`home-roll-button ${rolling ? 'rolling' : ''}`} disabled={!campaign || campaign.status !== 'active' || rolling} onClick={rollDice}><Dices size={16}/><span>{rolling ? 'Lancer…' : 'Lancer'}</span></button>
+        <button className="home-history-link" onClick={() => onNavigate('table')} aria-label="Voir tous les lancers" title="Voir tout l’historique"><ArrowUpRight size={15}/></button>
+      </div>
+      <div className="home-roll-history">
+        <div className="home-history-title"><span><ScrollText size={14}/> Historique des jets</span><small>{rolls.length ? 'EN DIRECT' : 'EN ATTENTE'}</small></div>
+        <div className="home-roll-list">
+          {rolls.length ? rolls.slice(0, 4).map((roll) => <RollItem key={roll.id} roll={roll} criticalMode={campaign?.criticalMode ?? 'positive'}/>) : <div className="home-no-rolls"><Dices size={16}/><span>Les résultats des dés s’afficheront ici.</span></div>}
+        </div>
+      </div>
+    </section>
+
+    <section className="home-friends-panel" aria-label="Amis">
+      <header className="home-panel-title"><span className="home-title-icon"><Users size={19}/></span><h2>Amis ({friends.length})</h2><span className="home-friends-online"><i/>{onlineFriends} en ligne</span><button className="home-friends-open" onClick={() => onNavigate('friends')} aria-label="Ouvrir la liste d’amis" title="Ouvrir la liste complète"><ArrowUpRight size={16}/></button></header>
+      {!friendsReady ? <button className="home-friends-empty" onClick={() => onNavigate('friends')}><Users size={22}/><strong>Lier ton compte pour retrouver tes amis</strong><span>La liste et les invitations se règlent dans l’onglet Amis.</span></button>
+        : friendsLoading ? <div className="home-friends-empty"><Sparkles size={18}/><span>Chargement de la liste d’amis…</span></div>
+        : friendsError ? <button className="home-friends-empty" onClick={() => onNavigate('friends')}><Users size={22}/><strong>La liste complète est dans Amis</strong><span>Ouvre cet onglet pour actualiser ou vérifier la connexion.</span></button>
+        : friends.length === 0 ? <button className="home-friends-empty" onClick={() => onNavigate('friends')}><UserPlusHome/><strong>Pas encore d’amis ajoutés</strong><span>Ajoute tes compagnons depuis la page Amis.</span></button>
+        : <div className="home-friend-list">{friends.map((friend) => {
+          const member = members.find((item) => item.displayName.toLocaleLowerCase() === friend.display_name.toLocaleLowerCase())
+          const status = member?.online ? 'En ligne' : member ? 'Absent' : 'Hors campagne'
+          return <div className="home-friend-row" key={friend.user_id} role="button" tabIndex={0} onClick={() => onNavigate('friends')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onNavigate('friends') } }}>
+            <span className="home-friend-avatar">{friend.display_name.slice(0, 1).toLocaleUpperCase()}</span>
+            <span className="home-friend-info"><strong>{friend.display_name}</strong><small><i className={member?.online ? 'online' : member ? 'away' : ''}/>{status}</small></span>
+            <span className="home-friend-id">{friend.public_id}</span>
+            <span className="home-friend-actions"><button type="button" aria-label={`Ouvrir les options de ${friend.display_name}`} title="Options de l’ami" onClick={(event) => { event.stopPropagation(); onNavigate('friends') }}><MessageCircle size={16}/></button><button type="button" aria-label={`Gérer les invitations avec ${friend.display_name}`} title="Invitations" onClick={(event) => { event.stopPropagation(); onNavigate('friends') }}><Send size={15}/></button></span>
+          </div>
+        })}</div>}
+    </section>
+
+    <div className="home-status" title={socketConnected ? 'Synchronisation multijoueur connectée' : !campaign ? 'Compte joueur connecté' : 'Connexion à la table en cours'}><span className={socketConnected || !campaign ? 'online' : ''}/>{socketConnected ? 'SYNCHRONISÉ' : !campaign ? 'COMPTE CONNECTÉ' : 'CONNEXION À LA TABLE'}</div>
+    <button className="home-signout" onClick={onSignOut} title="Se déconnecter"><LogOut size={16}/><span>Déconnexion</span></button>
+    </div>
+    {toast && <div className="toast home-toast"><Check size={16}/>{toast}<button onClick={clearToast} aria-label="Fermer"><X size={15}/></button></div>}
+  </div>
+}
+
+function UserPlusHome() { return <span className="home-empty-friends-icon"><Users size={20}/><span>＋</span></span> }
 
 function MainMenuActions({ onMenu, onSignOut }: { onMenu: () => void; onSignOut: () => void }) {
   return <div className="flow-global-actions"><button className="topbar-nav-button" onClick={onMenu}><DoorOpen size={15}/><span>Menu principal</span></button><button className="topbar-nav-button logout" onClick={onSignOut}><LogOut size={15}/><span>Déconnexion</span></button></div>
@@ -1052,7 +1244,7 @@ function PlayersView({ members, campaign }: { members: Member[]; campaign: Campa
 }
 
 function PlayerSocialHome({ user, page, onPage, onSignOut, onUserUpdated, onToast }: {
-  user: User; page: 'friends' | 'settings'; onPage: (page: 'friends' | 'settings') => void; onSignOut: () => void;
+  user: User; page: 'home' | 'friends' | 'settings'; onPage: (page: 'home' | 'friends' | 'settings') => void; onSignOut: () => void;
   onUserUpdated: (user: User, campaign: Campaign | null) => void; onToast: (message: string) => void;
 }) {
   return <div className="app-shell social-home-shell">
@@ -1060,15 +1252,17 @@ function PlayerSocialHome({ user, page, onPage, onSignOut, onUserUpdated, onToas
       <div className="brand"><div className="brand-mark"><Sparkles size={19}/></div><div><strong>Yuta et les 11</strong><span>ESPACE JOUEUR</span></div></div>
       <div className="side-label">VOTRE COMPTE</div>
       <nav className="side-nav">
+        <button className={page === 'home' ? 'nav-item active' : 'nav-item'} onClick={() => onPage('home')}><DoorOpen size={17}/><span>Accueil</span></button>
         <button className={page === 'friends' ? 'nav-item active' : 'nav-item'} onClick={() => onPage('friends')}><Users size={17}/><span>Amis</span></button>
         <button className={page === 'settings' ? 'nav-item active' : 'nav-item'} onClick={() => onPage('settings')}><Settings size={17}/><span>Réglages</span></button>
       </nav>
       <div className="sidebar-bottom"><div className="profile-row"><div className="avatar">{user.displayName.slice(0, 1).toUpperCase()}</div><div className="profile-copy"><strong>{user.displayName}</strong><span>Joueur</span></div></div></div>
     </aside>
-    <main className="main-area"><header className="topbar"><div className="breadcrumb">ESPACE JOUEUR <span>/</span> <strong>{page === 'friends' ? 'Amis' : 'Réglages'}</strong></div><div className="top-actions"><button className="topbar-nav-button logout" onClick={onSignOut}><LogOut size={14}/><span>Déconnexion</span></button></div></header>
+    <main className="main-area"><header className="topbar"><div className="breadcrumb">ESPACE JOUEUR <span>/</span> <strong>{page === 'friends' ? 'Amis' : page === 'settings' ? 'Réglages' : 'Accueil'}</strong></div><div className="top-actions"><button className="topbar-nav-button logout" onClick={onSignOut}><LogOut size={14}/><span>Déconnexion</span></button></div></header>
       <div className="page-content">{page === 'friends'
-        ? <FriendsView user={user} campaign={null} onGoSettings={() => onPage('settings')} onToast={onToast}/>
-        : <SettingsView user={user} campaign={null} onUserUpdated={onUserUpdated} onCampaignSelected={() => undefined} onCampaignDeleted={() => undefined} onToast={onToast}/>}</div>
+        ? <FriendsView user={user} campaign={null} onGoSettings={() => onPage('settings')} onToast={onToast}
+          />
+        : page === 'settings' ? <SettingsView user={user} campaign={null} onUserUpdated={onUserUpdated} onCampaignSelected={() => undefined} onCampaignDeleted={() => undefined} onToast={onToast}/> : null}</div>
     </main>
   </div>
 }

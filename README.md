@@ -4,7 +4,7 @@ Application multijoueur en français pour jouer à **Yuta et les 11**. L’inter
 
 ## Installer et démarrer sous Windows
 
-Téléchargez puis lancez `release\Yuta-et-les-11-Setup-0.1.18.exe`. L’application s’ouvre dans sa propre fenêtre avec son icône personnalisée, sans exiger que Node.js soit installé sur le PC de jeu. Un raccourci est ajouté au bureau et au menu Démarrer. Les sauvegardes sont conservées dans les données utilisateur Windows de l’application.
+Téléchargez puis lancez `release\Yuta-et-les-11-Setup-0.2.0.exe`. L’application s’ouvre dans sa propre fenêtre avec son icône personnalisée, sans exiger que Node.js soit installé sur le PC de jeu. Un raccourci est ajouté au bureau et au menu Démarrer. Les sauvegardes sont conservées dans les données utilisateur Windows de l’application.
 
 À partir de la 0.1.7, l’application vérifie les mises à jour au démarrage et les télécharge en arrière-plan. Depuis **Réglages → Mises à jour**, on peut aussi lancer une recherche manuelle et installer une mise à jour prête au moment choisi ; l’installation demande de redémarrer l’application.
 
@@ -51,11 +51,15 @@ npm install
 npm run package:win
 ```
 
-Le fichier généré se trouve dans `release\Yuta-et-les-11-Setup-0.1.18.exe`.
+Le fichier généré se trouve dans `release\Yuta-et-les-11-Setup-0.2.0.exe`.
+
+## Accueil de campagne
+
+Après connexion, l’accueil présente une disposition adaptée au MJ ou au joueur : campagne en cours, amis, historique et module de dés. Le portrait par défaut est affiché si aucune image n’est choisie ; un clic permet d’en sélectionner une sur cet appareil. Les joueurs sans campagne voient un message dans l’encart de campagne.
 
 ## Publier une mise à jour
 
-Le dépôt public [Xinoce/Yuta-et-les-11](https://github.com/Xinoce/Yuta-et-les-11) publie les installateurs sur GitHub Releases. Pour une nouvelle version, mettez à jour la version de `package.json`, poussez le code sur `main`, puis créez et poussez un tag correspondant, par exemple `v0.1.12`. GitHub Actions compile Windows et publie l’installateur ainsi que les métadonnées utilisées par l’auto‑mise‑à‑jour.
+Le dépôt public [Xinoce/Yuta-et-les-11](https://github.com/Xinoce/Yuta-et-les-11) publie les installateurs sur GitHub Releases. Pour une nouvelle version, mettez à jour la version de `package.json`, poussez le code sur `main`, puis créez et poussez un tag correspondant, par exemple `v0.2.0`. GitHub Actions compile Windows et publie l’installateur ainsi que les métadonnées utilisées par l’auto‑mise‑à‑jour.
 
 ## Socle de jeu
 
