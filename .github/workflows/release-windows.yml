@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -26,8 +25,30 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Build and publish the installer
-        run: npm run package:win -- --publish always
+      - name: Build the installer
+        run: |
+          npm run build
+          npm run download:cloudflared
+          npx electron-builder --win nsis --publish never
+      - name: Create the GitHub release if needed
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --title $tag --generate-notes --repo $env:GITHUB_REPOSITORY
+          }
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Upload installer and update metadata
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $installer = Get-ChildItem release -File -Filter 'Yuta-et-les-11-Setup-*.exe' | Where-Object { $_.Name -notmatch '\.__uninstaller\.exe$' } | Select-Object -First 1
+          if (-not $installer) { throw 'Windows installer was not generated.' }
+          $files = @($installer.FullName, "$($installer.FullName).blockmap", (Join-Path (Get-Location) 'release\latest.yml'))
+          foreach ($file in $files) { if (-not (Test-Path -LiteralPath $file)) { throw "Missing release file: $file" } }
+          gh release upload $tag @files --clobber --repo $env:GITHUB_REPOSITORY
         env:
           GH_TOKEN: ${{ github.token }}
 

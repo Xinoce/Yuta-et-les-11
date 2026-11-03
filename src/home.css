@@ -155,6 +155,98 @@
   .home-friend-id { display: none; }
   .home-friend-row { gap: 2%; }
 }
+/* Recompose the illustrated dashboard as a real grid on 1080p and smaller
+   logical viewports. This avoids squeezing its fixed artwork layout when
+   Windows display scaling reduces the available CSS height. */
+@media (min-width: 721px) and (max-width: 1920px), (min-width: 721px) and (max-height: 900px) {
+  .home-screen { width: 100%; max-width: 100vw; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
+  .home-artboard {
+    position: relative; inset: auto; left: auto; top: auto; transform: none;
+    display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, .95fr);
+    grid-template-rows: 56px minmax(250px, .82fr) minmax(390px, 1.18fr);
+    grid-template-areas: "menu menu" "campaign friends" "dice friends";
+    gap: 14px; width: 100%; height: auto; min-height: 100dvh; aspect-ratio: auto;
+    overflow: visible; padding: 10px 14px 16px; background: #09090d;
+  }
+  .home-backdrop { opacity: .34; object-fit: cover; }
+  .home-profile-picture { z-index: 4; top: 17px; bottom: auto; left: 22px; width: 42px; border: 1px solid #efc982; box-shadow: 0 0 0 2px #09090d, 0 0 12px #e6283c77; }
+  .home-profile-name { z-index: 4; top: 23px; bottom: auto; left: 74px; width: 156px; font-size: 14px; }
+  .home-profile-name small { margin-top: 3px; font-size: 10px; }
+  .home-category-nav { position: relative; grid-area: menu; inset: auto; width: 100%; height: 56px; padding: 2px 142px 2px 236px; flex-direction: row; gap: 5px; border-bottom: 1px solid #a47c5d66; background: #08090ce6; }
+  .home-category { flex: 1 1 0; min-width: 0; height: 100%; border: 1px solid #765b4b80; border-radius: 5px; }
+  .home-category::before { inset: 3px; border-radius: 4px; clip-path: none; }
+  .home-category::after { content: attr(aria-label); display: block; overflow: hidden; padding: 0 3px; color: #f5e5c6; font: 600 clamp(8px, .72vw, 13px)/1.15 Georgia,serif; text-overflow: ellipsis; white-space: nowrap; }
+  .home-category:hover, .home-category:focus-visible { transform: translateY(-1px) scale(1.02); }
+  .home-campaign-panel, .home-dice-panel, .home-friends-panel {
+    position: relative; inset: auto; width: auto; height: auto; min-width: 0; min-height: 0;
+    overflow: hidden; padding: 50px 12px 12px; border: 1px solid #d1a05d;
+    border-radius: 10px; background: linear-gradient(145deg, #0b0c10ee, #100b10f2 70%, #170b0eef);
+    box-shadow: 0 7px 22px #000b, inset 0 0 0 1px #f6d28b38;
+  }
+  .home-campaign-panel { grid-area: campaign; }
+  .home-dice-panel { grid-area: dice; }
+  .home-friends-panel { grid-area: friends; }
+  .home-panel-title, .home-campaign-panel>.home-panel-title, .home-dice-panel>.home-panel-title, .home-friends-panel>.home-panel-title {
+    left: 12px; right: 12px; top: 10px; height: 30px;
+  }
+  .home-panel-title h1, .home-panel-title h2, .home-friends-panel>.home-panel-title h2 { font-size: clamp(17px, 1.2vw, 23px); }
+  .home-title-icon { width: 22px; height: 22px; }
+  .home-campaign-feature { top: 48px; left: 10px; width: calc(100% - 20px); height: calc(100% - 58px); border-radius: 7px; }
+  .home-no-campaign { inset: 48px 12px 12px; gap: 10px; padding: 12px; }
+  .home-no-campaign>svg { width: 30px; height: 30px; }
+  .home-no-campaign strong { font-size: clamp(17px, 1.2vw, 23px); }
+  .home-no-campaign span { max-width: 90%; font-size: clamp(12px, .82vw, 16px); }
+  .home-feature-copy h2 { font-size: clamp(19px, 1.55vw, 28px); }
+  .home-feature-copy p { font-size: clamp(12px, .84vw, 16px); }
+  .home-resume-button { font-size: clamp(12px, .82vw, 16px); }
+  .home-dice-options { top: 52px; left: 12px; right: 12px; height: 25%; gap: clamp(5px, .65vw, 12px); }
+  .home-die-option { border-radius: 7px; }
+  .home-die-glyph { font-size: clamp(21px, 1.75vw, 32px); }
+  .home-die-option small { font-size: clamp(11px, .82vw, 16px); }
+  .home-dice-actions { top: calc(52px + 25% + 8px); left: 12px; right: 12px; height: 44px; gap: 10px; }
+  .home-dice-count { height: 40px; }
+  .home-dice-count>span { padding: 0 10px; font-size: clamp(11px, .8vw, 15px); }
+  .home-dice-count button { width: 32px; font-size: 19px; }
+  .home-dice-count strong { min-width: 32px; font-size: 15px; }
+  .home-roll-button { height: 40px; font-size: clamp(13px, .9vw, 17px); }
+  .home-history-link { width: 40px; height: 40px; }
+  .home-roll-history { top: calc(52px + 25% + 64px); left: 10px; right: 10px; bottom: 10px; }
+  .home-history-title { height: 34px; font-size: clamp(12px, .9vw, 17px); }
+  .home-history-title small { font-size: 9px; }
+  .home-roll-list .roll-row { min-height: 48px; margin-bottom: 3px; padding: 4px 8px; gap: 8px; }
+  .home-roll-list .roll-mark { width: 27px; height: 27px; }
+  .home-roll-list .roll-info strong { font-size: clamp(11px, .78vw, 15px); }
+  .home-roll-list .roll-info small, .home-roll-list .roll-result>span { font-size: clamp(9px, .6vw, 12px); }
+  .home-roll-list .roll-result strong { font-size: clamp(15px, 1vw, 19px); }
+  .home-roll-list .verdict-chip { max-width: 32%; font-size: 9px; }
+  .home-friends-panel>.home-panel-title { left: 12px; right: 12px; top: 10px; height: 30px; }
+  .home-friends-online { font-size: 10px; }
+  .home-friends-open { width: 28px; height: 28px; }
+  .home-friend-list { inset: 50px 10px 10px; gap: 6px; padding-right: 3px; }
+  .home-friend-row { flex: 0 0 auto; min-height: 54px; gap: 9px; padding: 5px 8px; border-radius: 6px; }
+  .home-friend-avatar { width: 38px; font-size: 14px; }
+  .home-friend-info { gap: 4px; }
+  .home-friend-info strong { font-size: clamp(12px, .82vw, 16px); }
+  .home-friend-info small { font-size: 10px; }
+  .home-friend-id { display: none; }
+  .home-friend-actions { gap: 5px; }
+  .home-friend-actions button { width: 30px; height: 30px; }
+  .home-friends-empty { inset: 50px 12px 12px; gap: 12px; padding: 14px; }
+  .home-friends-empty strong { font-size: clamp(13px, .9vw, 17px); }
+  .home-friends-empty>span:not(.home-empty-friends-icon) { font-size: clamp(11px, .75vw, 14px); }
+  .home-status { display: none; }
+  .home-signout { top: 18px; right: 22px; padding: 7px 10px; font-size: 11px; }
+  .home-signout svg { width: 14px; height: 14px; }
+}
+@media (min-width: 721px) and (max-width: 1050px) {
+  .home-artboard {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 56px 260px minmax(390px, auto) minmax(380px, auto);
+    grid-template-areas: "menu" "campaign" "dice" "friends";
+  }
+  .home-category-nav { padding-left: 212px; padding-right: 132px; gap: 3px; }
+  .home-category { border-color: #765b4b66; }
+}
 @media (max-width: 720px) {
   .home-screen { overflow: auto; min-height: 100dvh; height: 100dvh; }
   .home-artboard { position: relative; top: auto; left: auto; width: 100vw; height: auto; min-height: 0; aspect-ratio: 1670 / 941; overflow: visible; margin: 0 auto; transform: none; }
